@@ -6,7 +6,7 @@
   <p>A unified interface for managing all your MCP servers with real-time notifications</p>
 
   [![Version](https://img.shields.io/badge/version-1.2.0-blue?style=for-the-badge)](https://github.com/VeriTeknik/pluggedin-mcp/releases)
-  [![GitHub Stars](https://img.shields.io/github/stars/VeriTeknik/pluggedin-mcp?style=for-the-badge)](https://github.com/VeriTeknik/pluggedin-mcp-proxy/stargazers)
+  [![GitHub Stars](https://img.shields.io/github/stars/VeriTeknik/pluggedin-mcp-proxy?style=for-the-badge)](https://github.com/VeriTeknik/pluggedin-mcp-proxy/stargazers)
   [![License](https://img.shields.io/github/license/VeriTeknik/pluggedin-mcp?style=for-the-badge)](LICENSE)
   [![TypeScript](https://img.shields.io/badge/TypeScript-4.9+-blue?style=for-the-badge&logo=typescript)](https://www.typescriptlang.org/)
   [![MCP](https://img.shields.io/badge/MCP-Compatible-green?style=for-the-badge)](https://modelcontextprotocol.io/)
