@@ -1,0 +1,21 @@
+services:
+  mcp-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env.production.local
+    entrypoint: ["/bin/bash"]
+    command: ["-c", "uvx --version && echo 'uvx is working!' && tail -f /dev/null"]
+    healthcheck:
+      test: ["CMD", "ps", "aux", "|", "grep", "tail"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    environment:
+      - NODE_ENV=production
+    restart: unless-stopped
+    # Add any additional environment variables or command arguments here
+    # command: --pluggedin-api-key your-api-key --pluggedin-api-base-url your-base-url

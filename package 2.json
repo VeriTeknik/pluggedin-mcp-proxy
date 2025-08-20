@@ -1,0 +1,71 @@
+{
+  "name": "@pluggedin/pluggedin-mcp-proxy",
+  "version": "1.8.1",
+  "description": "Unified MCP proxy that aggregates all your MCP servers (STDIO, SSE, Streamable HTTP) into one powerful interface. Access any tool through a single connection, search across unified documents with built-in RAG, and receive notifications from any model. Test your MCPs instantly in the playground with Claude, Gemini, OpenAI, and xAI. Perfect for Smithery deployment and all MCP clients. Features real-time activity logging, custom notifications with email delivery, and seamless profile-based workspace switching.",
+  "scripts": {
+    "build": "tsc && shx chmod +x dist/*.js",
+    "watch": "tsc --watch",
+    "test": "vitest",
+    "test:watch": "vitest --watch",
+    "test:ui": "vitest --ui",
+    "test:coverage": "vitest --coverage",
+    "inspector": "node scripts/inspector-auto.js",
+    "inspector:auto": "node scripts/inspector-simple.js",
+    "inspector:manual": "dotenv -e .env.local npx @modelcontextprotocol/inspector dist/index.js -e PLUGGEDIN_API_KEY=${PLUGGEDIN_API_KEY} -e PLUGGEDIN_API_BASE_URL=${PLUGGEDIN_API_BASE_URL}",
+    "inspector:auth": "dotenv -e .env.local npx @modelcontextprotocol/inspector dist/index.js -e PLUGGEDIN_API_KEY=${PLUGGEDIN_API_KEY} -e PLUGGEDIN_API_BASE_URL=${PLUGGEDIN_API_BASE_URL}",
+    "inspector:staging": "dotenv -e .env.local npx @modelcontextprotocol/inspector dist/index.js -e PLUGGEDIN_API_KEY=${PLUGGEDIN_API_KEY} -e PLUGGEDIN_API_BASE_URL=${PLUGGEDIN_API_STAGING_BASE_URL}",
+    "inspector:prod": "dotenv -e .env.production.local npx @modelcontextprotocol/inspector dist/index.js -e PLUGGEDIN_API_KEY=${PLUGGEDIN_API_KEY}",
+    "inspector:no-api": "node scripts/inspector-no-api.js",
+    "test:no-api": "npm test -- --testNamePattern='no.*api.*key' || echo 'No specific no-API-key tests found. Consider adding tests for no-API-key scenarios.'",
+    "report": "dotenv -e .env.local -- node dist/index.js --report"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/VeriTeknik/pluggedin-mcp.git"
+  },
+  "author": "James Zhang",
+  "license": "Apache-2.0",
+  "bugs": {
+    "url": "https://github.com/VeriTeknik/pluggedin-mcp/issues"
+  },
+  "homepage": "https://github.com/VeriTeknik/pluggedin-mcp#readme",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.16.0",
+    "@types/uuid": "^10.0.0",
+    "axios": "^1.10.0",
+    "commander": "^14.0.0",
+    "express": "^5.1.0",
+    "uuid": "^11.1.0",
+    "zod": "^3.23.8",
+    "zod-to-json-schema": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.3",
+    "@types/node": "^24.0.4",
+    "@types/supertest": "^6.0.3",
+    "@vitest/ui": "^3.2.4",
+    "dotenv-cli": "^8.0.0",
+    "shx": "^0.4.0",
+    "supertest": "^7.1.1",
+    "typescript": "^5.8.3",
+    "vitest": "^3.2.4"
+  },
+  "type": "module",
+  "bin": {
+    "pluggedin-mcp-proxy": "dist/index.js"
+  },
+  "files": [
+    "dist",
+    "smithery.yaml"
+  ],
+  "main": "dist/index.js",
+  "exports": {
+    ".": "./dist/index.js",
+    "./dist/report-tools.js": "./dist/report-tools.js"
+  },
+  "keywords": [
+    "MCP",
+    "Proxy",
+    "Playground"
+  ]
+}
