@@ -1,3 +1,30 @@
+/**
+ * Plugged.in MCP Proxy - UUID-based Tool Prefixing Implementation
+ *
+ * This module implements automatic UUID-based tool prefixing to resolve name collisions
+ * in MCP clients. When multiple MCP servers provide tools with identical names,
+ * this system prefixes each tool with its server's UUID to ensure uniqueness.
+ *
+ * FEATURES:
+ * - Automatic UUID prefixing: {server_uuid}__{original_tool_name}
+ * - Backward compatibility: Supports both prefixed and non-prefixed tool calls
+ * - Configurable: Can be disabled via PLUGGEDIN_UUID_TOOL_PREFIXING=false
+ * - Collision-free: Guarantees unique tool names across all servers
+ *
+ * CONFIGURATION:
+ * - PLUGGEDIN_UUID_TOOL_PREFIXING: Set to 'false' to disable prefixing (default: true)
+ *
+ * USAGE:
+ * 1. Tools are automatically prefixed when retrieved from /api/tools?prefix_tools=true
+ * 2. MCP proxy handles both prefixed and non-prefixed tool calls seamlessly
+ * 3. Existing integrations continue to work without modification
+ *
+ * EXAMPLES:
+ * - Original: "read_file" from server "550e8400-e29b-41d4-a716-446655440000"
+ * - Prefixed: "550e8400-e29b-41d4-a716-446655440000__read_file"
+ * - Both forms are accepted for backward compatibility
+ */
+
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import {
   CallToolRequestSchema,
@@ -46,12 +73,54 @@ import {
   updateDocumentStaticTool
 } from "./tools/static-tools.js";
 import { StaticToolHandlers } from "./handlers/static-handlers.js";
+import { createSlugPrefixedToolName, parseSlugPrefixedToolName } from "./slug-utils.js";
 
 const require = createRequire(import.meta.url);
 const packageJson = require('../package.json');
 
 // Map to store prefixed tool name -> { originalName, serverUuid }
 const toolToServerMap: Record<string, { originalName: string; serverUuid: string; }> = {};
+
+// Configuration for UUID-based tool prefixing
+// Set PLUGGEDIN_UUID_TOOL_PREFIXING=false to disable UUID prefixing (for backward compatibility)
+// When enabled, tools are returned with format: {server_uuid}__{original_tool_name}
+// When disabled, tools are returned with their original names
+const UUID_TOOL_PREFIXING_ENABLED = process.env.PLUGGEDIN_UUID_TOOL_PREFIXING !== 'false'; // Default to true
+
+/**
+ * Creates a UUID-prefixed tool name
+ * Format: {server_uuid}__{original_tool_name}
+ */
+export function createPrefixedToolName(serverUuid: string, originalName: string): string {
+  return `${serverUuid}__${originalName}`;
+}
+
+/**
+ * Parses a potentially prefixed tool name
+ * Returns { originalName, serverUuid } or null if not prefixed
+ */
+export function parsePrefixedToolName(toolName: string): { originalName: string; serverUuid: string } | null {
+  const prefixSeparator = '__';
+  const separatorIndex = toolName.indexOf(prefixSeparator);
+
+  if (separatorIndex === -1) {
+    return null; // Not a prefixed name
+  }
+
+  const potentialUuid = toolName.substring(0, separatorIndex);
+  const potentialOriginalName = toolName.substring(separatorIndex + prefixSeparator.length);
+
+  // Validate that the first part is a valid UUID
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  if (!uuidRegex.test(potentialUuid) || !potentialOriginalName) {
+    return null; // Invalid UUID or empty original name
+  }
+
+  return {
+    originalName: potentialOriginalName,
+    serverUuid: potentialUuid
+  };
+}
 
 // Interface for instruction data from API
 interface InstructionData {
@@ -259,11 +328,15 @@ export const createServer = async () => {
      
      try {
 
-       const apiUrl = `${baseUrl}/api/tools`; // Assuming this is the correct endpoint
+       // Build API URL with prefixing parameter
+       const apiUrl = new URL(`${baseUrl}/api/tools`);
+       if (UUID_TOOL_PREFIXING_ENABLED) {
+         apiUrl.searchParams.set('prefix_tools', 'true');
+       }
 
        // Fetch the list of tools (which include original names and server info)
        // The API returns an object like { tools: [], message?: "..." }
-       const response = await axios.get<{ tools: (Tool & { _serverUuid: string, _serverName?: string })[], message?: string }>(apiUrl, {
+       const response = await axios.get<{ tools: (Tool & { _serverUuid: string, _serverName?: string })[], message?: string }>(apiUrl.toString(), {
          headers: {
            Authorization: `Bearer ${apiKey}`,
          },
@@ -275,15 +348,39 @@ export const createServer = async () => {
 
        // Clear previous mapping and populate with new data
        Object.keys(toolToServerMap).forEach(key => delete toolToServerMap[key]); // Clear map
-       
+
        // Create mappings for each tool to its server
        fetchedTools.forEach(tool => {
-         // Store mapping with original name as the key
          if (tool.name && tool._serverUuid) {
-            toolToServerMap[tool.name] = { 
-              originalName: tool.name, // No transformation needed anymore
-              serverUuid: tool._serverUuid 
-            };
+           // Store mapping with the tool name as returned by API (may be prefixed or not)
+           toolToServerMap[tool.name] = {
+             originalName: tool.name, // Will be updated if prefixed
+             serverUuid: tool._serverUuid
+           };
+
+           // If UUID prefixing is enabled and the tool name is not already prefixed,
+           // we need to handle backward compatibility
+           if (UUID_TOOL_PREFIXING_ENABLED) {
+             // Try parsing as slug-prefixed first (preferred)
+             const slugParsed = parseSlugPrefixedToolName(tool.name);
+             if (slugParsed) {
+               // Tool name is slug-prefixed, extract original name
+               toolToServerMap[tool.name].originalName = slugParsed.originalName;
+               debugLog(`[ListTools Handler] Tool ${tool.name} is slug-prefixed, original: ${slugParsed.originalName}`);
+             } else {
+               // Try parsing as UUID-prefixed for backward compatibility
+               const uuidParsed = parsePrefixedToolName(tool.name);
+               if (uuidParsed) {
+                 // Tool name is UUID-prefixed, extract original name
+                 toolToServerMap[tool.name].originalName = uuidParsed.originalName;
+                 debugLog(`[ListTools Handler] Tool ${tool.name} is UUID-prefixed, original: ${uuidParsed.originalName}`);
+               } else {
+                 // Tool name is not prefixed, this might be for backward compatibility
+                 // In this case, the originalName should remain as tool.name
+                 debugLog(`[ListTools Handler] Tool ${tool.name} is not prefixed, using as-is for backward compatibility`);
+               }
+             }
+           }
          } else {
             debugError(`[ListTools Handler] Missing tool name or UUID for tool: ${tool.name}`);
          }
@@ -1106,12 +1203,55 @@ export const createServer = async () => {
         }
 
         // Look up the downstream tool in our map
-        const toolInfo = toolToServerMap[requestedToolName];
-        if (!toolInfo) {
-            throw new Error(`Tool not found: ${requestedToolName}`);
-        }
+        let toolInfo = toolToServerMap[requestedToolName];
+        let originalName: string;
+        let serverUuid: string;
 
-        const { originalName, serverUuid } = toolInfo;
+        if (toolInfo) {
+            // Tool found directly in map
+            originalName = toolInfo.originalName;
+            serverUuid = toolInfo.serverUuid;
+        } else {
+            // Tool not found directly, try parsing as a prefixed name for backward compatibility
+            // Try slug-prefixed first (preferred)
+            const slugParsed = parseSlugPrefixedToolName(requestedToolName);
+            if (slugParsed) {
+                // This is a slug-prefixed tool name that wasn't in our map
+                // Try to find the tool by its original name
+                const originalToolInfo = Object.values(toolToServerMap).find(
+                    info => info.originalName === slugParsed.originalName
+                );
+
+                if (originalToolInfo) {
+                    originalName = slugParsed.originalName;
+                    serverUuid = originalToolInfo.serverUuid;
+                    debugLog(`[CallTool Handler] Found slug-prefixed tool: ${requestedToolName} -> ${originalName} on server ${serverUuid}`);
+                } else {
+                    throw new Error(`Tool not found: ${requestedToolName} (parsed as server slug ${slugParsed.serverSlug}, tool ${slugParsed.originalName})`);
+                }
+            } else {
+                // Try UUID-prefixed for backward compatibility
+                const uuidParsed = parsePrefixedToolName(requestedToolName);
+                if (uuidParsed) {
+                    // This is a UUID-prefixed tool name that wasn't in our map
+                    // Try to find the tool by its original name
+                    const originalToolInfo = Object.values(toolToServerMap).find(
+                        info => info.originalName === uuidParsed.originalName && info.serverUuid === uuidParsed.serverUuid
+                    );
+
+                    if (originalToolInfo) {
+                        originalName = uuidParsed.originalName;
+                        serverUuid = uuidParsed.serverUuid;
+                        debugLog(`[CallTool Handler] Found UUID-prefixed tool: ${requestedToolName} -> ${originalName} on server ${serverUuid}`);
+                    } else {
+                        throw new Error(`Tool not found: ${requestedToolName} (parsed as server ${uuidParsed.serverUuid}, tool ${uuidParsed.originalName})`);
+                    }
+                } else {
+                    // Not a prefixed name and not in map
+                    throw new Error(`Tool not found: ${requestedToolName}`);
+                }
+            }
+        }
 
         // Basic server UUID validation
         if (!serverUuid || typeof serverUuid !== 'string') {

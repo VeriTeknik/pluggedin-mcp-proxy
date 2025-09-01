@@ -53,9 +53,10 @@ Start by running the \`pluggedin_discover_tools\` tool. This will:
 - Present them in an organized, prefixed format
 
 ### Step 2: Understanding Tool Names
-All discovered tools are prefixed with their server name to avoid conflicts:
-- Format: \`servername_toolname\`
-- Example: \`filesystem_read_file\`, \`github_create_issue\`
+All discovered tools are prefixed with their server UUID to avoid conflicts:
+- Format: \`{server_uuid}__{tool_name}\`
+- Example: \`550e8400-e29b-41d4-a716-446655440000__read_file\`, \`123e4567-e89b-12d3-a456-426614174000__create_issue\`
+- This ensures unique tool names even when multiple servers have tools with identical names
 
 ### Step 3: Using Discovered Tools
 Once discovered, simply call any tool by its prefixed name with appropriate arguments.
@@ -106,7 +107,7 @@ These tools are built into Plugged.in and always available:
 1. Discover tools: pluggedin_discover_tools
 2. Create a document: pluggedin_create_document
 3. Search documents: pluggedin_search_documents
-4. Use server tools: filesystem_read_file, github_create_pr, etc.
+4. Use server tools: 550e8400-e29b-41d4-a716-446655440000__read_file, 123e4567-e89b-12d3-a456-426614174000__create_pr, etc.
 \`\`\`
 
 Ready to explore? Start with \`pluggedin_discover_tools\`!`
@@ -195,7 +196,7 @@ Arguments: {
 
 ### Pattern 1: Discover → Use
 1. \`pluggedin_discover_tools\` - Find available tools
-2. \`filesystem_read_file\` - Use a discovered tool
+2. \`550e8400-e29b-41d4-a716-446655440000__read_file\` - Use a discovered tool
 
 ### Pattern 2: Discover → Document → Search
 1. \`pluggedin_discover_tools\` - Find tools
@@ -211,7 +212,7 @@ Arguments: {
 
 1. **Cache Management**: Discovery results are cached for performance. Use \`force_refresh\` when servers are updated.
 
-2. **Server Naming**: Tools are prefixed to avoid conflicts. A "read" tool from "filesystem" becomes \`filesystem_read\`.
+2. **UUID Prefixing**: Tools are prefixed with server UUIDs to avoid conflicts. A "read" tool from server "550e8400-e29b-41d4-a716-446655440000" becomes \`550e8400-e29b-41d4-a716-446655440000__read\`.
 
 3. **Error Handling**: If a tool fails, check:
    - Is the server still connected?
