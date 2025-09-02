@@ -1,7 +1,53 @@
 /**
  * Slug utilities for MCP proxy
  * Used for slug-based tool prefixing to resolve name collisions
+ * 
+ * Security: All input is sanitized to prevent XSS attacks
+ * Performance: Includes caching for frequently used slugs
  */
+
+// Cache for generated slugs to improve performance
+const slugCache = new Map<string, string>();
+const MAX_CACHE_SIZE = 1000;
+
+/**
+ * Sanitizes input to prevent XSS attacks
+ * @param input - The input string to sanitize
+ * @returns Sanitized string
+ */
+function sanitizeInput(input: string): string {
+  // Remove any HTML tags and script content
+  return input
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+    .replace(/<[^>]+>/g, '')
+    .replace(/[<>"'`]/g, ''); // Remove dangerous characters
+}
+
+/**
+ * Validates input parameters
+ * @param name - The name to validate
+ * @param maxLength - Maximum allowed length
+ * @throws Error if validation fails
+ */
+function validateInput(name: unknown, maxLength: number = 255): string {
+  if (name === null || name === undefined) {
+    throw new Error('Input is required and cannot be null or undefined');
+  }
+  
+  if (typeof name !== 'string') {
+    throw new Error(`Input must be a string, received ${typeof name}`);
+  }
+  
+  if (name.trim().length === 0) {
+    throw new Error('Input cannot be empty or contain only whitespace');
+  }
+  
+  if (name.length > maxLength) {
+    throw new Error(`Input exceeds maximum length of ${maxLength} characters`);
+  }
+  
+  return name;
+}
 
 /**
  * Generates a URL-friendly slug from a server name
@@ -9,14 +55,22 @@
  * @returns A URL-friendly slug
  */
 export function generateSlug(name: string): string {
-  if (!name || typeof name !== 'string') {
-    throw new Error('Server name is required and must be a string');
+  // Validate and sanitize input
+  const validatedName = validateInput(name, 255);
+  const sanitizedName = sanitizeInput(validatedName);
+  
+  // Check cache first
+  const cacheKey = `slug:${sanitizedName}`;
+  if (slugCache.has(cacheKey)) {
+    return slugCache.get(cacheKey)!;
   }
 
   // Convert to lowercase and replace spaces/special chars with hyphens
-  let slug = name
+  let slug = sanitizedName
     .toLowerCase()
     .trim()
+    .normalize('NFD') // Normalize unicode characters
+    .replace(/[\u0300-\u036f]/g, '') // Remove diacritics
     .replace(/[^a-z0-9\s-]/g, '') // Remove special characters except spaces and hyphens
     .replace(/\s+/g, '-') // Replace spaces with hyphens
     .replace(/-+/g, '-') // Replace multiple hyphens with single hyphen
@@ -28,9 +82,18 @@ export function generateSlug(name: string): string {
   }
 
   // Ensure maximum length (reasonable for URLs)
-  if (slug.length > 50) {
-    slug = slug.substring(0, 50).replace(/-$/, ''); // Remove trailing hyphen if truncated
+  const MAX_SLUG_LENGTH = 50;
+  if (slug.length > MAX_SLUG_LENGTH) {
+    slug = slug.substring(0, MAX_SLUG_LENGTH).replace(/-$/, ''); // Remove trailing hyphen if truncated
   }
+
+  // Cache the result (with size limit)
+  if (slugCache.size >= MAX_CACHE_SIZE) {
+    // Remove oldest entry (FIFO)
+    const firstKey = slugCache.keys().next().value;
+    if (firstKey) slugCache.delete(firstKey);
+  }
+  slugCache.set(cacheKey, slug);
 
   return slug;
 }
@@ -42,23 +105,35 @@ export function generateSlug(name: string): string {
  * @returns A unique slug
  */
 export function generateUniqueSlug(baseSlug: string, existingSlugs: string[]): string {
-  if (!existingSlugs.includes(baseSlug)) {
-    return baseSlug;
+  // Validate inputs
+  const validatedSlug = validateInput(baseSlug, 50);
+  
+  if (!Array.isArray(existingSlugs)) {
+    throw new Error('existingSlugs must be an array');
+  }
+  
+  // Use Set for O(1) lookup performance
+  const existingSet = new Set(existingSlugs);
+  
+  if (!existingSet.has(validatedSlug)) {
+    return validatedSlug;
   }
 
   let counter = 1;
-  let uniqueSlug = `${baseSlug}-${counter}`;
-
-  while (existingSlugs.includes(uniqueSlug)) {
+  let uniqueSlug = `${validatedSlug}-${counter}`;
+  
+  const MAX_ITERATIONS = 100; // Reasonable limit
+  
+  while (existingSet.has(uniqueSlug) && counter < MAX_ITERATIONS) {
     counter++;
-    uniqueSlug = `${baseSlug}-${counter}`;
-
-    // Prevent infinite loop (though unlikely)
-    if (counter > 1000) {
-      // Add timestamp for guaranteed uniqueness
-      uniqueSlug = `${baseSlug}-${Date.now()}`;
-      break;
-    }
+    uniqueSlug = `${validatedSlug}-${counter}`;
+  }
+  
+  // If we still have collision after MAX_ITERATIONS, use timestamp
+  if (existingSet.has(uniqueSlug)) {
+    // Use shorter timestamp format (last 8 digits of epoch)
+    const timestamp = Date.now().toString().slice(-8);
+    uniqueSlug = `${validatedSlug}-${timestamp}`;
   }
 
   return uniqueSlug;
@@ -69,7 +144,7 @@ export function generateUniqueSlug(baseSlug: string, existingSlugs: string[]): s
  * @param slug - The slug to validate
  * @returns True if the slug is valid
  */
-export function isValidSlug(slug: string): boolean {
+export function isValidSlug(slug: unknown): boolean {
   if (!slug || typeof slug !== 'string') {
     return false;
   }
@@ -88,15 +163,23 @@ export function isValidSlug(slug: string): boolean {
  * @returns The prefixed tool name
  */
 export function createSlugPrefixedToolName(serverSlug: string, originalName: string): string {
-  if (!serverSlug || !originalName) {
-    throw new Error('Both server slug and original name are required');
+  // Validate inputs
+  const validatedSlug = validateInput(serverSlug, 50);
+  const validatedName = validateInput(originalName, 255);
+  
+  if (!isValidSlug(validatedSlug)) {
+    throw new Error(`Invalid server slug format: ${validatedSlug}`);
   }
-
-  if (!isValidSlug(serverSlug)) {
-    throw new Error('Invalid server slug format');
+  
+  // Sanitize the original name to prevent XSS
+  const sanitizedName = sanitizeInput(validatedName);
+  
+  // Check if sanitized name is empty after removing dangerous content
+  if (!sanitizedName || sanitizedName.trim().length === 0) {
+    throw new Error('Tool name becomes empty after sanitization');
   }
-
-  return `${serverSlug}__${originalName}`;
+  
+  return `${validatedSlug}__${sanitizedName}`;
 }
 
 /**
@@ -104,20 +187,23 @@ export function createSlugPrefixedToolName(serverSlug: string, originalName: str
  * @param toolName - The potentially prefixed tool name
  * @returns Object with originalName and serverSlug, or null if not prefixed
  */
-export function parseSlugPrefixedToolName(toolName: string): { originalName: string; serverSlug: string } | null {
+export function parseSlugPrefixedToolName(toolName: unknown): { originalName: string; serverSlug: string } | null {
   if (!toolName || typeof toolName !== 'string') {
     return null;
   }
+  
+  // Sanitize input to prevent XSS
+  const sanitizedToolName = sanitizeInput(toolName);
 
   const prefixSeparator = '__';
-  const separatorIndex = toolName.indexOf(prefixSeparator);
+  const separatorIndex = sanitizedToolName.indexOf(prefixSeparator);
 
   if (separatorIndex === -1) {
     return null; // Not a prefixed name
   }
 
-  const potentialSlug = toolName.substring(0, separatorIndex);
-  const potentialOriginalName = toolName.substring(separatorIndex + prefixSeparator.length);
+  const potentialSlug = sanitizedToolName.substring(0, separatorIndex);
+  const potentialOriginalName = sanitizedToolName.substring(separatorIndex + prefixSeparator.length);
 
   // Validate that the first part is a valid slug
   if (!isValidSlug(potentialSlug) || !potentialOriginalName) {
@@ -128,4 +214,18 @@ export function parseSlugPrefixedToolName(toolName: string): { originalName: str
     originalName: potentialOriginalName,
     serverSlug: potentialSlug
   };
+}
+
+/**
+ * Clears the slug cache (useful for testing or memory management)
+ */
+export function clearSlugCache(): void {
+  slugCache.clear();
+}
+
+/**
+ * Gets the current cache size (useful for monitoring)
+ */
+export function getSlugCacheSize(): number {
+  return slugCache.size;
 }

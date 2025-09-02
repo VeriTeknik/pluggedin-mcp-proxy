@@ -409,7 +409,7 @@ export const createServer = async () => {
 
        return { tools: allToolsForClient, nextCursor: undefined };
 
-     } catch (error: any) {
+     } catch (error: unknown) {
        // Log API fetch error but still return the static tool
        let sanitizedError = "Failed to list tools";
        if (axios.isAxiosError(error) && error.response?.status) {
@@ -501,7 +501,7 @@ export const createServer = async () => {
                         if (toolsCount > 0) {
                             const tools = toolsResponse.data?.tools || toolsResponse.data || [];
                             dataContent += `## ⚡ Dynamic MCP Tools (${toolsCount}) - From Connected Servers:\n`;
-                            tools.forEach((tool: any, index: number) => {
+                            tools.forEach((tool: Tool, index: number) => {
                                 dataContent += `${index + 1}. **${tool.name}**`;
                                 if (tool.description) {
                                     dataContent += ` - ${tool.description}`;
@@ -517,7 +517,7 @@ export const createServer = async () => {
                         // Add prompts section  
                         if (promptsCount > 0) {
                             dataContent += `## 💬 Available Prompts (${promptsCount}):\n`;
-                            promptsResponse.data.forEach((prompt: any, index: number) => {
+                            promptsResponse.data.forEach((prompt: { name: string; description?: string }, index: number) => {
                                 dataContent += `${index + 1}. **${prompt.name}**`;
                                 if (prompt.description) {
                                     dataContent += ` - ${prompt.description}`;
@@ -530,7 +530,7 @@ export const createServer = async () => {
                         // Add resources section
                         if (resourcesCount > 0) {
                             dataContent += `## 📄 Available Resources (${resourcesCount}):\n`;
-                            resourcesResponse.data.forEach((resource: any, index: number) => {
+                            resourcesResponse.data.forEach((resource: { uri: string; name: string; description?: string; mimeType?: string }, index: number) => {
                                 dataContent += `${index + 1}. **${resource.name || resource.uri}**`;
                                 if (resource.description) {
                                     dataContent += ` - ${resource.description}`;
@@ -546,7 +546,7 @@ export const createServer = async () => {
                         // Add templates section
                         if (templatesCount > 0) {
                             dataContent += `## 📋 Available Resource Templates (${templatesCount}):\n`;
-                            templatesResponse.data.forEach((template: any, index: number) => {
+                            templatesResponse.data.forEach((template: ResourceTemplate, index: number) => {
                                 dataContent += `${index + 1}. **${template.name || template.uriTemplate}**`;
                                 if (template.description) {
                                     dataContent += ` - ${template.description}`;
@@ -577,7 +577,7 @@ export const createServer = async () => {
                         shouldRunDiscovery = true;
                         existingDataSummary = "No cached dynamic data found";
                     }
-                } catch (cacheError: any) {
+                } catch (cacheError: unknown) {
                     // Error checking cache, show static tools and proceed with discovery
                     
                     // Show static tools even when cache check fails
@@ -678,7 +678,7 @@ export const createServer = async () => {
                             if (toolsCount > 0) {
                                 const tools = toolsResponse.data?.tools || toolsResponse.data || [];
                                 forceRefreshContent += `## ⚡ Dynamic MCP Tools (${toolsCount}) - From Connected Servers:\n`;
-                                tools.forEach((tool: any, index: number) => {
+                                tools.forEach((tool: Tool, index: number) => {
                                     forceRefreshContent += `${index + 1}. **${tool.name}**`;
                                     if (tool.description) {
                                         forceRefreshContent += ` - ${tool.description}`;
@@ -694,7 +694,7 @@ export const createServer = async () => {
                             // Add prompts section  
                             if (promptsCount > 0) {
                                 forceRefreshContent += `## 💬 Available Prompts (${promptsCount}):\n`;
-                                promptsResponse.data.forEach((prompt: any, index: number) => {
+                                promptsResponse.data.forEach((prompt: { name: string; description?: string }, index: number) => {
                                     forceRefreshContent += `${index + 1}. **${prompt.name}**`;
                                     if (prompt.description) {
                                         forceRefreshContent += ` - ${prompt.description}`;
@@ -707,7 +707,7 @@ export const createServer = async () => {
                             // Add resources section
                             if (resourcesCount > 0) {
                                 forceRefreshContent += `## 📄 Available Resources (${resourcesCount}):\n`;
-                                resourcesResponse.data.forEach((resource: any, index: number) => {
+                                resourcesResponse.data.forEach((resource: { uri: string; name: string; description?: string; mimeType?: string }, index: number) => {
                                     forceRefreshContent += `${index + 1}. **${resource.name || resource.uri}**`;
                                     if (resource.description) {
                                         forceRefreshContent += ` - ${resource.description}`;
@@ -723,7 +723,7 @@ export const createServer = async () => {
                             // Add templates section
                             if (templatesCount > 0) {
                                 forceRefreshContent += `## 📋 Available Resource Templates (${templatesCount}):\n`;
-                                templatesResponse.data.forEach((template: any, index: number) => {
+                                templatesResponse.data.forEach((template: ResourceTemplate, index: number) => {
                                     forceRefreshContent += `${index + 1}. **${template.name || template.uriTemplate}**`;
                                     if (template.description) {
                                         forceRefreshContent += ` - ${template.description}`;
@@ -738,7 +738,7 @@ export const createServer = async () => {
                             
                             forceRefreshContent += `📝 **Note**: Fresh discovery is running in background. Call pluggedin_discover_tools() again in 10-30 seconds to see if any new tools were discovered.`;
 
-                        } catch (cacheError: any) {
+                        } catch (cacheError: unknown) {
                             // If we can't get cached data, just show static tools
                             forceRefreshContent = server_uuid 
                                 ? `🔄 Force refresh initiated for server ${server_uuid}. Discovery is running in background.\n\nCould not retrieve cached data, showing static tools:\n\n`
@@ -810,7 +810,7 @@ export const createServer = async () => {
                             isError: false,
                         } as ToolExecutionResult;
 
-                    } catch (apiError: any) {
+                    } catch (apiError: unknown) {
                         // Log failed discovery
                         logMcpActivity({
                             action: 'tool_call',
@@ -824,7 +824,7 @@ export const createServer = async () => {
                         
                          const errorMsg = axios.isAxiosError(apiError)
                             ? `API Error (${apiError.response?.status}): ${apiError.response?.data?.error || apiError.message}`
-                            : apiError.message;
+                            : (apiError instanceof Error ? apiError.message : 'Unknown error');
                          throw new Error(`Failed to trigger discovery via API: ${errorMsg}`);
                     }
                 }
@@ -876,7 +876,7 @@ export const createServer = async () => {
                     isError: false,
                 } as ToolExecutionResult; // Cast to expected type
 
-            } catch (apiError: any) {
+            } catch (apiError: unknown) {
                  // Log failed RAG query
                  logMcpActivity({
                      action: 'tool_call',
@@ -944,7 +944,7 @@ export const createServer = async () => {
                     isError: false,
                 } as ToolExecutionResult; // Cast to expected type
 
-            } catch (apiError: any) {
+            } catch (apiError: unknown) {
                  // Log failed notification
                  logMcpActivity({
                      action: 'tool_call',
@@ -1037,7 +1037,7 @@ export const createServer = async () => {
                     isError: false,
                 } as ToolExecutionResult;
 
-            } catch (apiError: any) {
+            } catch (apiError: unknown) {
                  // Log failed list
                  logMcpActivity({
                      action: 'tool_call',
@@ -1096,7 +1096,7 @@ export const createServer = async () => {
                     isError: false,
                 } as ToolExecutionResult;
 
-            } catch (apiError: any) {
+            } catch (apiError: unknown) {
                  // Log failed mark as done
                  logMcpActivity({
                      action: 'tool_call',
@@ -1160,7 +1160,7 @@ export const createServer = async () => {
                     isError: false,
                 } as ToolExecutionResult;
 
-            } catch (apiError: any) {
+            } catch (apiError: unknown) {
                  // Log failed delete
                  logMcpActivity({
                      action: 'tool_call',
@@ -1570,10 +1570,10 @@ The proxy acts as a unified gateway to all your MCP capabilities while providing
             messages: messages,
           } as z.infer<typeof GetPromptResultSchema>; // Ensure correct type
 
-        } catch (apiError: any) {
+        } catch (apiError: unknown) {
            const errorMsg = axios.isAxiosError(apiError)
               ? `API Error (${apiError.response?.status}) fetching instruction ${name}: ${apiError.response?.data?.error || apiError.message}`
-              : apiError.message;
+              : apiError instanceof Error ? apiError.message : String(apiError);
               
            // Log failed custom instruction retrieval
            logMcpActivity({
@@ -1692,7 +1692,7 @@ The proxy acts as a unified gateway to all your MCP capabilities while providing
           }
         }
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       const errorMessage = axios.isAxiosError(error)
         ? `API Error (${error.response?.status}) resolving/getting prompt ${name}: ${error.response?.data?.error || error.message}`
         : error instanceof Error
@@ -1756,7 +1756,7 @@ The proxy acts as a unified gateway to all your MCP capabilities while providing
       // Note: Pagination not handled here
       return { prompts: allPrompts, nextCursor: undefined };
 
-    } catch (error: any) {
+    } catch (error: unknown) {
       const errorMessage = axios.isAxiosError(error)
         ? `API Error (${error.response?.status}): ${error.message}`
         : error instanceof Error
@@ -1796,7 +1796,7 @@ The proxy acts as a unified gateway to all your MCP capabilities while providing
       // The API would need to support cursor-based pagination for this to work fully.
       return { resources: resources, nextCursor: undefined };
 
-    } catch (error: any) {
+    } catch (error: unknown) {
       const errorMessage = axios.isAxiosError(error)
         ? `API Error (${error.response?.status}): ${error.message}`
         : error instanceof Error
@@ -1922,7 +1922,7 @@ The proxy acts as a unified gateway to all your MCP capabilities while providing
              }
         }
 
-    } catch (error: any) {
+    } catch (error: unknown) {
         const errorMessage = axios.isAxiosError(error)
             ? `API Error (${error.response?.status}) resolving URI ${uri}: ${error.response?.data?.error || error.message}`
             : error instanceof Error
@@ -1961,7 +1961,7 @@ The proxy acts as a unified gateway to all your MCP capabilities while providing
       // Wrap the array in the expected structure for the MCP response
       return { resourceTemplates: templates, nextCursor: undefined }; // Pagination not handled
 
-    } catch (error: any) {
+    } catch (error: unknown) {
       const errorMessage = axios.isAxiosError(error)
         ? `API Error (${error.response?.status}): ${error.message}`
         : error instanceof Error
