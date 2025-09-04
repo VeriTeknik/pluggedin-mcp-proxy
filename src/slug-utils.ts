@@ -8,6 +8,7 @@
 
 import slugify from 'slugify';
 import QuickLRU from 'quick-lru';
+import sanitizeHtml from 'sanitize-html';
 
 // LRU cache for generated slugs to improve performance
 const slugCache = new QuickLRU<string, string>({ maxSize: 1000 });
@@ -15,23 +16,26 @@ const slugCache = new QuickLRU<string, string>({ maxSize: 1000 });
 /**
  * Sanitizes input to prevent XSS attacks while allowing valid tool name characters.
  * Allowed characters: letters, numbers, spaces, dashes, underscores, and periods.
- * Removes HTML tags and script content.
+ * Uses sanitize-html library for robust HTML/script removal.
  * @param input - The input string to sanitize
  * @returns Sanitized string
  */
 function sanitizeInput(input: string): string {
-  // Remove any HTML tags and script content (repeatedly, in case of nested/adjacent patterns)
-  let sanitized = input;
-  let previous;
-  do {
-    previous = sanitized;
-    sanitized = sanitized
-      .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
-      .replace(/<[^>]+>/g, '');
-  } while (sanitized !== previous);
+  // First, only allow valid tool name characters to avoid entity decoding issues
+  let sanitized = input.replace(/[^a-zA-Z0-9 .\-_<>]/g, '');
+  
+  // Then use sanitize-html to remove HTML/script content while preserving allowed chars
+  sanitized = sanitizeHtml(sanitized, {
+    allowedTags: [], // Remove all HTML tags
+    allowedAttributes: {}, // Remove all HTML attributes  
+    disallowedTagsMode: 'discard', // Discard disallowed tags completely
+    parser: {
+      decodeEntities: false // Don't decode HTML entities
+    }
+  });
 
-  // Only allow valid tool name characters: letters, numbers, spaces, dashes, underscores, and periods
-  sanitized = sanitized.replace(/[^a-zA-Z0-9 .\-_]/g, '');
+  // Final cleanup - remove any remaining dangerous characters
+  sanitized = sanitized.replace(/[<>]/g, '');
 
   return sanitized;
 }
@@ -39,19 +43,20 @@ function sanitizeInput(input: string): string {
 /**
  * Sanitizes tool names less aggressively - removes HTML/script but preserves more characters.
  * This is suitable for UUID-based prefixes where the server identifier is already trusted.
+ * Uses sanitize-html library for robust HTML/script removal.
  * @param input - The tool name to sanitize
  * @returns Sanitized string
  */
 function sanitizeToolName(input: string): string {
-  // Remove any HTML tags and script content for XSS prevention (repeatedly, in case of nested/adjacent patterns)
-  let sanitized = input;
-  let previous;
-  do {
-    previous = sanitized;
-    sanitized = sanitized
-      .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
-      .replace(/<[^>]+>/g, '');
-  } while (sanitized !== previous);
+  // Use sanitize-html to remove HTML/script content while preserving tool-name chars
+  let sanitized = sanitizeHtml(input, {
+    allowedTags: [], // Remove all HTML tags
+    allowedAttributes: {}, // Remove all HTML attributes
+    disallowedTagsMode: 'discard', // Discard disallowed tags completely
+    parser: {
+      decodeEntities: false // Don't decode HTML entities
+    }
+  });
 
   // Remove only the most dangerous characters, preserve @ # and other tool-name chars
   sanitized = sanitized.replace(/[<>'"&]/g, '');

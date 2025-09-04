@@ -36,6 +36,7 @@
     "commander": "^14.0.0",
     "express": "^5.1.0",
     "quick-lru": "^7.1.0",
+    "sanitize-html": "^2.17.0",
     "slugify": "^1.6.6",
     "uuid": "^11.1.0",
     "zod": "^3.23.8",
@@ -44,6 +45,7 @@
   "devDependencies": {
     "@types/express": "^5.0.3",
     "@types/node": "^24.0.4",
+    "@types/sanitize-html": "^2.16.0",
     "@types/supertest": "^6.0.3",
     "@vitest/ui": "^3.2.4",
     "dotenv-cli": "^8.0.0",
