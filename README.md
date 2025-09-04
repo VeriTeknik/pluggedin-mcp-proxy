@@ -5,7 +5,7 @@
   <h3>The Crossroads for AI Data Exchanges</h3>
   <p>A unified interface for managing all your MCP servers with built-in playground for testing on any AI model</p>
 
-  [![Version](https://img.shields.io/badge/version-1.4.0-blue?style=for-the-badge)](https://github.com/VeriTeknik/pluggedin-mcp/releases)
+  [![Version](https://img.shields.io/badge/version-1.9.0-blue?style=for-the-badge)](https://github.com/VeriTeknik/pluggedin-mcp/releases)
   [![GitHub Stars](https://img.shields.io/github/stars/VeriTeknik/pluggedin-mcp?style=for-the-badge)](https://github.com/VeriTeknik/pluggedin-mcp/stargazers)
   [![License](https://img.shields.io/github/license/VeriTeknik/pluggedin-mcp?style=for-the-badge)](LICENSE)
   [![TypeScript](https://img.shields.io/badge/TypeScript-4.9+-blue?style=for-the-badge&logo=typescript)](https://www.typescriptlang.org/)
@@ -534,6 +534,21 @@ The plugged.in MCP Proxy Server is designed to work seamlessly with the [plugged
 Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## 📝 Recent Updates
+
+### Version 1.9.0 (September 2025) - Security Enhancements
+
+#### 🔒 Enhanced HTML Sanitization
+- **Industry-Standard Sanitization**: Replaced custom regex-based HTML sanitization with `sanitize-html` library
+- **XSS Prevention**: Comprehensive protection against cross-site scripting attacks
+- **HTML Attribute Security**: Enhanced sanitization for HTML attribute contexts (quotes, ampersands)
+- **Format String Injection**: Fixed format string injection vulnerabilities in logging
+- **Security Testing**: Comprehensive test coverage for all sanitization functions
+
+#### 🛡️ Security Improvements
+- **CodeQL Compliance**: Resolved all security vulnerabilities identified by GitHub CodeQL analysis
+- **Input Validation**: Strengthened input validation and sanitization across all functions
+- **Dependency Updates**: Added `sanitize-html` for robust HTML content filtering
+- **Test Coverage**: Enhanced security test suite with XSS attack prevention verification
 
 ### Version 1.5.0 (January 2025) - RAG v2
 
