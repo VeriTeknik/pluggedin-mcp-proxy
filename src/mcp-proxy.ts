@@ -65,6 +65,7 @@ import {
   withTimeout
 } from "./security-utils.js";
 import { debugLog, debugError } from "./debug-log.js";
+import { withErrorHandling } from "./error-handler.js";
 import {
   createDocumentStaticTool,
   listDocumentsStaticTool,
@@ -73,7 +74,12 @@ import {
   updateDocumentStaticTool
 } from "./tools/static-tools.js";
 import { StaticToolHandlers } from "./handlers/static-handlers.js";
-import { createSlugPrefixedToolName, parseSlugPrefixedToolName } from "./slug-utils.js";
+import { 
+  createSlugPrefixedToolName, 
+  parseSlugPrefixedToolName, 
+  parsePrefixedToolName as parseAnyPrefixedToolName,
+  isValidUuid
+} from "./slug-utils.js";
 
 const require = createRequire(import.meta.url);
 const packageJson = require('../package.json');
@@ -96,29 +102,19 @@ export function createPrefixedToolName(serverUuid: string, originalName: string)
 }
 
 /**
- * Parses a potentially prefixed tool name
+ * Parses a potentially prefixed tool name (UUID-based for backward compatibility)
  * Returns { originalName, serverUuid } or null if not prefixed
  */
 export function parsePrefixedToolName(toolName: string): { originalName: string; serverUuid: string } | null {
-  const prefixSeparator = '__';
-  const separatorIndex = toolName.indexOf(prefixSeparator);
-
-  if (separatorIndex === -1) {
-    return null; // Not a prefixed name
+  const parsed = parseAnyPrefixedToolName(toolName);
+  
+  if (!parsed || parsed.prefixType !== 'uuid') {
+    return null; // Not a UUID-prefixed name
   }
-
-  const potentialUuid = toolName.substring(0, separatorIndex);
-  const potentialOriginalName = toolName.substring(separatorIndex + prefixSeparator.length);
-
-  // Validate that the first part is a valid UUID
-  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-  if (!uuidRegex.test(potentialUuid) || !potentialOriginalName) {
-    return null; // Invalid UUID or empty original name
-  }
-
+  
   return {
-    originalName: potentialOriginalName,
-    serverUuid: potentialUuid
+    originalName: parsed.originalName,
+    serverUuid: parsed.serverIdentifier
   };
 }
 
@@ -361,24 +357,16 @@ export const createServer = async () => {
            // If UUID prefixing is enabled and the tool name is not already prefixed,
            // we need to handle backward compatibility
            if (UUID_TOOL_PREFIXING_ENABLED) {
-             // Try parsing as slug-prefixed first (preferred)
-             const slugParsed = parseSlugPrefixedToolName(tool.name);
-             if (slugParsed) {
-               // Tool name is slug-prefixed, extract original name
-               toolToServerMap[tool.name].originalName = slugParsed.originalName;
-               debugLog(`[ListTools Handler] Tool ${tool.name} is slug-prefixed, original: ${slugParsed.originalName}`);
+             // Use shared helper for parsing prefixed tool names
+             const parsed = parseAnyPrefixedToolName(tool.name);
+             if (parsed) {
+               // Tool name is prefixed, extract original name
+               toolToServerMap[tool.name].originalName = parsed.originalName;
+               debugLog(`[ListTools Handler] Tool ${tool.name} is ${parsed.prefixType}-prefixed, original: ${parsed.originalName}`);
              } else {
-               // Try parsing as UUID-prefixed for backward compatibility
-               const uuidParsed = parsePrefixedToolName(tool.name);
-               if (uuidParsed) {
-                 // Tool name is UUID-prefixed, extract original name
-                 toolToServerMap[tool.name].originalName = uuidParsed.originalName;
-                 debugLog(`[ListTools Handler] Tool ${tool.name} is UUID-prefixed, original: ${uuidParsed.originalName}`);
-               } else {
-                 // Tool name is not prefixed, this might be for backward compatibility
-                 // In this case, the originalName should remain as tool.name
-                 debugLog(`[ListTools Handler] Tool ${tool.name} is not prefixed, using as-is for backward compatibility`);
-               }
+               // Tool name is not prefixed, this might be for backward compatibility
+               // In this case, the originalName should remain as tool.name
+               debugLog(`[ListTools Handler] Tool ${tool.name} is not prefixed, using as-is for backward compatibility`);
              }
            }
          } else {
@@ -1213,49 +1201,37 @@ export const createServer = async () => {
             serverUuid = toolInfo.serverUuid;
         } else {
             // Tool not found directly, try parsing as a prefixed name for backward compatibility
-            // Try slug-prefixed first (preferred)
-            const slugParsed = parseSlugPrefixedToolName(requestedToolName);
-            if (slugParsed) {
-                // This is a slug-prefixed tool name that wasn't in our map
-                // Try to find the tool by its original name
+            const parsed = parseAnyPrefixedToolName(requestedToolName);
+            if (parsed) {
+                // This is a prefixed tool name that wasn't in our map
+                // Try to find the tool by its original name and server identifier
                 const originalToolInfo = Object.values(toolToServerMap).find(
-                    info => info.originalName === slugParsed.originalName
+                    info => info.originalName === parsed.originalName && (
+                        parsed.prefixType === 'slug' || 
+                        (parsed.prefixType === 'uuid' && info.serverUuid === parsed.serverIdentifier)
+                    )
                 );
 
                 if (originalToolInfo) {
-                    originalName = slugParsed.originalName;
+                    originalName = parsed.originalName;
                     serverUuid = originalToolInfo.serverUuid;
-                    debugLog(`[CallTool Handler] Found slug-prefixed tool: ${requestedToolName} -> ${originalName} on server ${serverUuid}`);
+                    debugLog(`[CallTool Handler] Found ${parsed.prefixType}-prefixed tool: ${requestedToolName} -> ${originalName} on server ${serverUuid}`);
                 } else {
-                    throw new Error(`Tool not found: ${requestedToolName} (parsed as server slug ${slugParsed.serverSlug}, tool ${slugParsed.originalName})`);
+                    throw new Error(`Tool not found: ${requestedToolName} (parsed as server ${parsed.prefixType} ${parsed.serverIdentifier}, tool ${parsed.originalName})`);
                 }
             } else {
-                // Try UUID-prefixed for backward compatibility
-                const uuidParsed = parsePrefixedToolName(requestedToolName);
-                if (uuidParsed) {
-                    // This is a UUID-prefixed tool name that wasn't in our map
-                    // Try to find the tool by its original name
-                    const originalToolInfo = Object.values(toolToServerMap).find(
-                        info => info.originalName === uuidParsed.originalName && info.serverUuid === uuidParsed.serverUuid
-                    );
-
-                    if (originalToolInfo) {
-                        originalName = uuidParsed.originalName;
-                        serverUuid = uuidParsed.serverUuid;
-                        debugLog(`[CallTool Handler] Found UUID-prefixed tool: ${requestedToolName} -> ${originalName} on server ${serverUuid}`);
-                    } else {
-                        throw new Error(`Tool not found: ${requestedToolName} (parsed as server ${uuidParsed.serverUuid}, tool ${uuidParsed.originalName})`);
-                    }
-                } else {
-                    // Not a prefixed name and not in map
-                    throw new Error(`Tool not found: ${requestedToolName}`);
-                }
+                // Not a prefixed name and not in map
+                throw new Error(`Tool not found: ${requestedToolName}`);
             }
         }
 
         // Basic server UUID validation
-        if (!serverUuid || typeof serverUuid !== 'string') {
-            throw new Error("Invalid server UUID");
+        if (
+            !serverUuid ||
+            typeof serverUuid !== 'string' ||
+            !isValidUuid(serverUuid)
+        ) {
+            throw new Error("Invalid server UUID format");
         }
 
         // Get the downstream server session
@@ -1704,109 +1680,93 @@ The proxy acts as a unified gateway to all your MCP capabilities while providing
   });
 
   // List Prompts Handler - Fetches aggregated list from Pluggedin App API
-  server.setRequestHandler(ListPromptsRequestSchema, async (request) => {
-    try {
-      const apiKey = getPluggedinMCPApiKey();
-      const baseUrl = getPluggedinMCPApiBaseUrl();
-      if (!apiKey || !baseUrl) {
-        throw new Error("Pluggedin API Key or Base URL is not configured.");
-      }
-
-      const promptsApiUrl = `${baseUrl}/api/prompts`;
-      const customInstructionsApiUrl = `${baseUrl}/api/custom-instructions`; // This endpoint should return full instruction data
-
-      // Fetch both standard prompts and custom instructions concurrently
-      const [promptsResponse, customInstructionsResponse] = await Promise.all([
-        axios.get<z.infer<typeof ListPromptsResultSchema>["prompts"]>(promptsApiUrl, {
-          headers: { Authorization: `Bearer ${apiKey}` },
-          timeout: 10000,
-        }),
-        // API should return: [{ name: string, description: string, instruction: string (JSON), _serverUuid: string }]
-        axios.get<z.infer<typeof ListPromptsResultSchema>["prompts"]>(customInstructionsApiUrl, {
-          headers: { Authorization: `Bearer ${apiKey}` },
-          timeout: 10000,
-        })
-      ]);
-
-      const standardPrompts = promptsResponse.data || [];
-      const customInstructionsAsPrompts = customInstructionsResponse.data || [];
-
-      // Clear previous instruction mapping and populate with new data
-      Object.keys(instructionToServerMap).forEach(key => delete instructionToServerMap[key]); // Clear map
-      
-      // Store the full instruction data from API
-      // The API should return objects with: name, description, instruction (JSON content), _serverUuid
-      customInstructionsAsPrompts.forEach(instr => {
-        if (instr.name) {
-          // Store the entire instruction object for later retrieval
-          instructionToServerMap[instr.name] = instr;
-        } else {
-            debugError(`[ListPrompts Handler] Missing name for custom instruction:`, instr);
-        }
-      });
-
-      // Merge the results (Remove internal _serverUuid from custom instructions before sending to client)
-      const allPrompts = [
-          proxyCapabilitiesStaticPrompt, // Add static proxy capabilities prompt
-          ...standardPrompts,
-          ...customInstructionsAsPrompts.map(({ _serverUuid, ...rest }) => rest)
-      ];
-
-      // Wrap the combined array in the expected structure for the MCP response
-      // Note: Pagination not handled here
-      return { prompts: allPrompts, nextCursor: undefined };
-
-    } catch (error: unknown) {
-      const errorMessage = axios.isAxiosError(error)
-        ? `API Error (${error.response?.status}): ${error.message}`
-        : error instanceof Error
-        ? error.message
-        : "Unknown error fetching prompts or custom instructions from API";
-      debugError("[ListPrompts Handler Error]", errorMessage);
-      // Let SDK handle error formatting
-      throw new Error(`Failed to list prompts: ${errorMessage}`);
+  // Extract ListPrompts handler logic for error handling
+  const listPromptsHandler = withErrorHandling(async (request: any) => {
+    const apiKey = getPluggedinMCPApiKey();
+    const baseUrl = getPluggedinMCPApiBaseUrl();
+    if (!apiKey || !baseUrl) {
+      throw new Error("Pluggedin API Key or Base URL is not configured.");
     }
+
+    const promptsApiUrl = `${baseUrl}/api/prompts`;
+    const customInstructionsApiUrl = `${baseUrl}/api/custom-instructions`; // This endpoint should return full instruction data
+
+    // Fetch both standard prompts and custom instructions concurrently
+    const [promptsResponse, customInstructionsResponse] = await Promise.all([
+      axios.get<z.infer<typeof ListPromptsResultSchema>["prompts"]>(promptsApiUrl, {
+        headers: { Authorization: `Bearer ${apiKey}` },
+        timeout: 10000,
+      }),
+      // API should return: [{ name: string, description: string, instruction: string (JSON), _serverUuid: string }]
+      axios.get<z.infer<typeof ListPromptsResultSchema>["prompts"]>(customInstructionsApiUrl, {
+        headers: { Authorization: `Bearer ${apiKey}` },
+        timeout: 10000,
+      })
+    ]);
+
+    const standardPrompts = promptsResponse.data || [];
+    const customInstructionsAsPrompts = customInstructionsResponse.data || [];
+
+    // Clear previous instruction mapping and populate with new data
+    Object.keys(instructionToServerMap).forEach(key => delete instructionToServerMap[key]); // Clear map
+    
+    // Store the full instruction data from API
+    // The API should return objects with: name, description, instruction (JSON content), _serverUuid
+    customInstructionsAsPrompts.forEach(instr => {
+      if (instr.name) {
+        // Store the entire instruction object for later retrieval
+        instructionToServerMap[instr.name] = instr;
+      } else {
+          debugError(`[ListPrompts Handler] Missing name for custom instruction:`, instr);
+      }
+    });
+
+    // Merge the results (Remove internal _serverUuid from custom instructions before sending to client)
+    const allPrompts = [
+        proxyCapabilitiesStaticPrompt, // Add static proxy capabilities prompt
+        ...standardPrompts,
+        ...customInstructionsAsPrompts.map(({ _serverUuid, ...rest }) => rest)
+    ];
+
+    // Wrap the combined array in the expected structure for the MCP response
+    // Note: Pagination not handled here
+    return { prompts: allPrompts, nextCursor: undefined };
+  }, {
+    action: 'list_prompts'
   });
+
+  server.setRequestHandler(ListPromptsRequestSchema, listPromptsHandler);
 
 
   // List Resources Handler - Fetches aggregated list from Pluggedin App API
-  server.setRequestHandler(ListResourcesRequestSchema, async (request) => {
-    try {
-      const apiKey = getPluggedinMCPApiKey();
-      const baseUrl = getPluggedinMCPApiBaseUrl();
-      if (!apiKey || !baseUrl) {
-        throw new Error("Pluggedin API Key or Base URL is not configured.");
-      }
-
-      const apiUrl = `${baseUrl}/api/resources`; // Assuming this is the correct endpoint
-
-
-      const response = await axios.get<z.infer<typeof ListResourcesResultSchema>["resources"]>(apiUrl, {
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-        },
-        timeout: 10000, // Add a timeout for the API call (e.g., 10 seconds)
-      });
-
-      // The API currently returns just the array, wrap it in the expected structure
-      const resources = response.data || [];
-
-
-      // Note: Pagination across servers via the API is not implemented here.
-      // The API would need to support cursor-based pagination for this to work fully.
-      return { resources: resources, nextCursor: undefined };
-
-    } catch (error: unknown) {
-      const errorMessage = axios.isAxiosError(error)
-        ? `API Error (${error.response?.status}): ${error.message}`
-        : error instanceof Error
-        ? error.message
-        : "Unknown error fetching resources from API";
-      debugError("[ListResources Handler Error]", errorMessage);
-      // Let SDK handle error formatting
-      throw new Error(`Failed to list resources: ${errorMessage}`);
+  // Extract ListResources handler logic for error handling
+  const listResourcesHandler = withErrorHandling(async (request: any) => {
+    const apiKey = getPluggedinMCPApiKey();
+    const baseUrl = getPluggedinMCPApiBaseUrl();
+    if (!apiKey || !baseUrl) {
+      throw new Error("Pluggedin API Key or Base URL is not configured.");
     }
+
+    const apiUrl = `${baseUrl}/api/resources`; // Assuming this is the correct endpoint
+
+    const response = await axios.get<z.infer<typeof ListResourcesResultSchema>["resources"]>(apiUrl, {
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+      },
+      timeout: 10000, // Add a timeout for the API call (e.g., 10 seconds)
+    });
+
+    // The API currently returns just the array, wrap it in the expected structure
+    const resources = response.data || [];
+
+    // Note: Pagination across servers via the API is not implemented here.
+    // The API would need to support cursor-based pagination for this to work fully.
+    return { resources: resources, nextCursor: undefined };
+  }, {
+    action: 'list_resources'
   });
+
+  server.setRequestHandler(ListResourcesRequestSchema, listResourcesHandler);
 
   // Read Resource Handler - Simplified to only proxy
   // WARNING: This handler will likely fail now because resourceToClient is no longer populated.
@@ -1935,43 +1895,34 @@ The proxy acts as a unified gateway to all your MCP capabilities while providing
   });
 
   // List Resource Templates Handler - Fetches aggregated list from Pluggedin App API
-  server.setRequestHandler(ListResourceTemplatesRequestSchema, async (request) => {
-    try {
-      const apiKey = getPluggedinMCPApiKey();
-      const baseUrl = getPluggedinMCPApiBaseUrl();
-      if (!apiKey || !baseUrl) {
-        throw new Error("Pluggedin API Key or Base URL is not configured.");
-      }
-
-      const apiUrl = `${baseUrl}/api/resource-templates`; // New endpoint
-
-
-      // Fetch the list of templates
-      // Assuming the API returns ResourceTemplate[] directly
-      const response = await axios.get<ResourceTemplate[]>(apiUrl, {
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-        },
-        timeout: 10000, // Add a timeout
-      });
-
-      const templates = response.data || [];
-
-
-      // Wrap the array in the expected structure for the MCP response
-      return { resourceTemplates: templates, nextCursor: undefined }; // Pagination not handled
-
-    } catch (error: unknown) {
-      const errorMessage = axios.isAxiosError(error)
-        ? `API Error (${error.response?.status}): ${error.message}`
-        : error instanceof Error
-        ? error.message
-        : "Unknown error fetching resource templates from API";
-      debugError("[ListResourceTemplates Handler Error]", errorMessage);
-      // Let SDK handle error formatting
-      throw new Error(`Failed to list resource templates: ${errorMessage}`);
+  // Extract ListResourceTemplates handler logic for error handling
+  const listResourceTemplatesHandler = withErrorHandling(async (request: any) => {
+    const apiKey = getPluggedinMCPApiKey();
+    const baseUrl = getPluggedinMCPApiBaseUrl();
+    if (!apiKey || !baseUrl) {
+      throw new Error("Pluggedin API Key or Base URL is not configured.");
     }
+
+    const apiUrl = `${baseUrl}/api/resource-templates`; // New endpoint
+
+    // Fetch the list of templates
+    // Assuming the API returns ResourceTemplate[] directly
+    const response = await axios.get<ResourceTemplate[]>(apiUrl, {
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+      },
+      timeout: 10000, // Add a timeout
+    });
+
+    const templates = response.data || [];
+
+    // Wrap the array in the expected structure for the MCP response
+    return { resourceTemplates: templates, nextCursor: undefined }; // Pagination not handled
+  }, {
+    action: 'list_resource_templates'
   });
+
+  server.setRequestHandler(ListResourceTemplatesRequestSchema, listResourceTemplatesHandler);
 
   // Ping Handler - Responds to simple ping requests
   server.setRequestHandler(PingRequestSchema, async (request) => {

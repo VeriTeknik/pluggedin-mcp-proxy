@@ -2,25 +2,51 @@
  * Slug utilities for MCP proxy
  * Used for slug-based tool prefixing to resolve name collisions
  * 
- * Security: All input is sanitized to prevent XSS attacks
- * Performance: Includes caching for frequently used slugs
+ * Security: All input is sanitized to prevent XSS attacks while allowing valid tool name characters
+ * Performance: Uses LRU cache for frequently used slugs
  */
 
-// Cache for generated slugs to improve performance
-const slugCache = new Map<string, string>();
-const MAX_CACHE_SIZE = 1000;
+import slugify from 'slugify';
+import QuickLRU from 'quick-lru';
+
+// LRU cache for generated slugs to improve performance
+const slugCache = new QuickLRU<string, string>({ maxSize: 1000 });
 
 /**
- * Sanitizes input to prevent XSS attacks
+ * Sanitizes input to prevent XSS attacks while allowing valid tool name characters.
+ * Allowed characters: letters, numbers, spaces, dashes, underscores, and periods.
+ * Removes HTML tags and script content.
  * @param input - The input string to sanitize
  * @returns Sanitized string
  */
 function sanitizeInput(input: string): string {
   // Remove any HTML tags and script content
-  return input
+  let sanitized = input
     .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
-    .replace(/<[^>]+>/g, '')
-    .replace(/[<>"'`]/g, ''); // Remove dangerous characters
+    .replace(/<[^>]+>/g, '');
+
+  // Only allow valid tool name characters: letters, numbers, spaces, dashes, underscores, and periods
+  sanitized = sanitized.replace(/[^a-zA-Z0-9 .\-_]/g, '');
+
+  return sanitized;
+}
+
+/**
+ * Sanitizes tool names less aggressively - removes HTML/script but preserves more characters.
+ * This is suitable for UUID-based prefixes where the server identifier is already trusted.
+ * @param input - The tool name to sanitize
+ * @returns Sanitized string
+ */
+function sanitizeToolName(input: string): string {
+  // Remove any HTML tags and script content for XSS prevention
+  let sanitized = input
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+    .replace(/<[^>]+>/g, '');
+
+  // Remove only the most dangerous characters, preserve @ # and other tool-name chars
+  sanitized = sanitized.replace(/[<>'"&]/g, '');
+
+  return sanitized;
 }
 
 /**
@@ -55,47 +81,32 @@ function validateInput(name: unknown, maxLength: number = 255): string {
  * @returns A URL-friendly slug
  */
 export function generateSlug(name: string): string {
-  // Validate and sanitize input
-  const validatedName = validateInput(name, 255);
-  const sanitizedName = sanitizeInput(validatedName);
-  
-  // Check cache first
-  const cacheKey = `slug:${sanitizedName}`;
-  if (slugCache.has(cacheKey)) {
-    return slugCache.get(cacheKey)!;
+  if (typeof name !== 'string' || !name.trim()) {
+    throw new Error('Server name must be a non-empty string');
   }
 
-  // Convert to lowercase and replace spaces/special chars with hyphens
-  let slug = sanitizedName
-    .toLowerCase()
-    .trim()
-    .normalize('NFD') // Normalize unicode characters
-    .replace(/[\u0300-\u036f]/g, '') // Remove diacritics
-    .replace(/[^a-z0-9\s-]/g, '') // Remove special characters except spaces and hyphens
-    .replace(/\s+/g, '-') // Replace spaces with hyphens
-    .replace(/-+/g, '-') // Replace multiple hyphens with single hyphen
-    .replace(/^-|-$/g, ''); // Remove leading/trailing hyphens
-
-  // Ensure minimum length
-  if (slug.length === 0) {
-    slug = 'server';
-  }
-
-  // Ensure maximum length (reasonable for URLs)
-  const MAX_SLUG_LENGTH = 50;
-  if (slug.length > MAX_SLUG_LENGTH) {
-    slug = slug.substring(0, MAX_SLUG_LENGTH).replace(/-$/, ''); // Remove trailing hyphen if truncated
-  }
-
-  // Cache the result (with size limit)
-  if (slugCache.size >= MAX_CACHE_SIZE) {
-    // Remove oldest entry (FIFO)
-    const firstKey = slugCache.keys().next().value;
-    if (firstKey) slugCache.delete(firstKey);
-  }
-  slugCache.set(cacheKey, slug);
-
-  return slug;
+  return (
+    slugCache.get(name) ||
+    (() => {
+      // First sanitize to remove HTML/script content and dangerous characters
+      const sanitized = sanitizeInput(name);
+      
+      // Convert to lowercase and replace spaces/special chars with hyphens
+      let slug = sanitized
+        .toLowerCase()
+        .trim()
+        .replace(/[^a-z0-9.-]/g, '-')  // Replace non-alphanumeric (except . and -) with hyphens
+        .replace(/-+/g, '-')           // Replace multiple hyphens with single hyphen
+        .replace(/^-+|-+$/g, '');      // Trim leading/trailing hyphens
+      
+      // Limit length
+      slug = slug.slice(0, 50).replace(/-+$/, '');
+      
+      const result = slug || 'server';
+      slugCache.set(name, result);
+      return result;
+    })()
+  );
 }
 
 /**
@@ -192,28 +203,30 @@ export function parseSlugPrefixedToolName(toolName: unknown): { originalName: st
     return null;
   }
   
-  // Sanitize input to prevent XSS
-  const sanitizedToolName = sanitizeInput(toolName);
-
   const prefixSeparator = '__';
-  const separatorIndex = sanitizedToolName.indexOf(prefixSeparator);
+  const separatorIndex = (toolName as string).indexOf(prefixSeparator);
 
   if (separatorIndex === -1) {
     return null; // Not a prefixed name
   }
 
-  const potentialSlug = sanitizedToolName.substring(0, separatorIndex);
-  const potentialOriginalName = sanitizedToolName.substring(separatorIndex + prefixSeparator.length);
+  const serverSlug = (toolName as string).slice(0, separatorIndex);
+  const originalName = (toolName as string).slice(separatorIndex + prefixSeparator.length);
 
   // Validate that the first part is a valid slug
-  if (!isValidSlug(potentialSlug) || !potentialOriginalName) {
+  if (!isValidSlug(serverSlug) || !originalName) {
     return null; // Invalid slug or empty original name
   }
 
-  return {
-    originalName: potentialOriginalName,
-    serverSlug: potentialSlug
-  };
+  // Sanitize only the originalName to prevent XSS
+  const sanitizedOriginalName = sanitizeInput(originalName);
+
+  // Check if sanitized name is empty after removing dangerous content
+  if (!sanitizedOriginalName || sanitizedOriginalName.trim().length === 0) {
+    return null;
+  }
+
+  return { originalName: sanitizedOriginalName, serverSlug };
 }
 
 /**
@@ -228,4 +241,73 @@ export function clearSlugCache(): void {
  */
 export function getSlugCacheSize(): number {
   return slugCache.size;
+}
+
+/**
+ * Result of parsing a prefixed tool name
+ */
+export interface ParsedPrefixedToolName {
+  originalName: string;
+  serverIdentifier: string;
+  prefixType: 'slug' | 'uuid';
+}
+
+/**
+ * Validates UUID format
+ * @param uuid - The UUID to validate
+ * @returns True if the UUID format is valid
+ */
+export function isValidUuid(uuid: string): boolean {
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  return uuidRegex.test(uuid);
+}
+
+/**
+ * Shared helper for parsing prefixed tool names (slug or UUID-based)
+ * This reduces duplication and centralizes prefix detection logic
+ * @param toolName - The potentially prefixed tool name
+ * @returns Parsed result with originalName, serverIdentifier, and prefixType, or null if not prefixed
+ */
+export function parsePrefixedToolName(toolName: unknown): ParsedPrefixedToolName | null {
+  if (!toolName || typeof toolName !== 'string') {
+    return null;
+  }
+  
+  const prefixSeparator = '__';
+  const separatorIndex = toolName.indexOf(prefixSeparator);
+
+  if (separatorIndex === -1) {
+    return null; // Not a prefixed name
+  }
+
+  const serverIdentifier = toolName.slice(0, separatorIndex);
+  const originalName = toolName.slice(separatorIndex + prefixSeparator.length);
+
+  if (!serverIdentifier || !originalName) {
+    return null; // Empty identifier or tool name
+  }
+
+  // Try UUID first (more specific format)
+  if (isValidUuid(serverIdentifier)) {
+    // Use less aggressive sanitization for UUID-based prefixes
+    const sanitizedOriginalName = sanitizeToolName(originalName);
+    return {
+      originalName: sanitizedOriginalName,
+      serverIdentifier,
+      prefixType: 'uuid'
+    };
+  }
+
+  // Try slug (broader format)
+  if (isValidSlug(serverIdentifier)) {
+    // Sanitize only the originalName to prevent XSS
+    const sanitizedOriginalName = sanitizeInput(originalName);
+    return {
+      originalName: sanitizedOriginalName,
+      serverIdentifier,
+      prefixType: 'slug'
+    };
+  }
+
+  return null; // Invalid identifier format
 }

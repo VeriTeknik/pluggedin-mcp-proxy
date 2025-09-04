@@ -81,11 +81,32 @@ console.log(`✅ Pass: ${parsedInvalid === null ? 'Yes' : 'No'}\n`);
 // Test 5: Edge cases
 console.log('Test 5: Edge cases');
 const edgeCases = [
+  // '__' at the end, no tool name
   'uuid__',
+  // '__' at the start, no uuid
   '__tool',
+  // Multiple '__' in the string
   'uuid__tool__extra',
+  // Tool name with underscores
   '550e8400-e29b-41d4-a716-446655440000__tool_with_underscores',
-  '550e8400-e29b-41d4-a716-446655440000__tool-with-dashes'
+  // Tool name with dashes
+  '550e8400-e29b-41d4-a716-446655440000__tool-with-dashes',
+  // Tool name with special characters
+  '550e8400-e29b-41d4-a716-446655440000__tool!@#$%^&*()',
+  // Tool name with emoji
+  '550e8400-e29b-41d4-a716-446655440000__tool🚀',
+  // Very long tool name
+  '550e8400-e29b-41d4-a716-446655440000__' + 'a'.repeat(256),
+  // Empty string as tool name
+  '550e8400-e29b-41d4-a716-446655440000__',
+  // Whitespace-only tool name
+  '550e8400-e29b-41d4-a716-446655440000__    ',
+  // '__' at the start and end
+  '__tool__',
+  // '__' only
+  '__',
+  // UUID only, no '__'
+  '550e8400-e29b-41d4-a716-446655440000',
 ];
 
 console.log('UUID-based edge cases:');

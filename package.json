@@ -35,6 +35,8 @@
     "axios": "^1.11.0",
     "commander": "^14.0.0",
     "express": "^5.1.0",
+    "quick-lru": "^7.1.0",
+    "slugify": "^1.6.6",
     "uuid": "^11.1.0",
     "zod": "^3.23.8",
     "zod-to-json-schema": "^3.24.1"
