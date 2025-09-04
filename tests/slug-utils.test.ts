@@ -61,6 +61,8 @@ describe('Slug Utilities', () => {
       expect(generateSlug('<script>alert("xss")</script>')).toBe('server');
       // 'test<img src=x onerror=alert(1)>' becomes 'test' after sanitization
       expect(generateSlug('test<img src=x onerror=alert(1)>')).toBe('test');
+      // HTML attribute context: quotes and ampersands should be removed
+      expect(generateSlug('test"quote&entity')).toBe('testquoteentity');
     });
 
     it('should use cache for repeated calls', () => {

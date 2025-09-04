@@ -34,8 +34,8 @@ function sanitizeInput(input: string): string {
     }
   });
 
-  // Final cleanup - remove any remaining dangerous characters
-  sanitized = sanitized.replace(/[<>]/g, '');
+  // Final cleanup - remove any remaining dangerous characters (especially for HTML attribute context)
+  sanitized = sanitized.replace(/[<>"&]/g, '');
 
   return sanitized;
 }
