@@ -20,10 +20,15 @@ const slugCache = new QuickLRU<string, string>({ maxSize: 1000 });
  * @returns Sanitized string
  */
 function sanitizeInput(input: string): string {
-  // Remove any HTML tags and script content
-  let sanitized = input
-    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
-    .replace(/<[^>]+>/g, '');
+  // Remove any HTML tags and script content (repeatedly, in case of nested/adjacent patterns)
+  let sanitized = input;
+  let previous;
+  do {
+    previous = sanitized;
+    sanitized = sanitized
+      .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+      .replace(/<[^>]+>/g, '');
+  } while (sanitized !== previous);
 
   // Only allow valid tool name characters: letters, numbers, spaces, dashes, underscores, and periods
   sanitized = sanitized.replace(/[^a-zA-Z0-9 .\-_]/g, '');
@@ -38,10 +43,15 @@ function sanitizeInput(input: string): string {
  * @returns Sanitized string
  */
 function sanitizeToolName(input: string): string {
-  // Remove any HTML tags and script content for XSS prevention
-  let sanitized = input
-    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
-    .replace(/<[^>]+>/g, '');
+  // Remove any HTML tags and script content for XSS prevention (repeatedly, in case of nested/adjacent patterns)
+  let sanitized = input;
+  let previous;
+  do {
+    previous = sanitized;
+    sanitized = sanitized
+      .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+      .replace(/<[^>]+>/g, '');
+  } while (sanitized !== previous);
 
   // Remove only the most dangerous characters, preserve @ # and other tool-name chars
   sanitized = sanitized.replace(/[<>'"&]/g, '');
