@@ -1,3 +1,30 @@
+/**
+ * Plugged.in MCP Proxy - UUID-based Tool Prefixing Implementation
+ *
+ * This module implements automatic UUID-based tool prefixing to resolve name collisions
+ * in MCP clients. When multiple MCP servers provide tools with identical names,
+ * this system prefixes each tool with its server's UUID to ensure uniqueness.
+ *
+ * FEATURES:
+ * - Automatic UUID prefixing: {server_uuid}__{original_tool_name}
+ * - Backward compatibility: Supports both prefixed and non-prefixed tool calls
+ * - Configurable: Can be disabled via PLUGGEDIN_UUID_TOOL_PREFIXING=false
+ * - Collision-free: Guarantees unique tool names across all servers
+ *
+ * CONFIGURATION:
+ * - PLUGGEDIN_UUID_TOOL_PREFIXING: Set to 'false' to disable prefixing (default: true)
+ *
+ * USAGE:
+ * 1. Tools are automatically prefixed when retrieved from /api/tools?prefix_tools=true
+ * 2. MCP proxy handles both prefixed and non-prefixed tool calls seamlessly
+ * 3. Existing integrations continue to work without modification
+ *
+ * EXAMPLES:
+ * - Original: "read_file" from server "550e8400-e29b-41d4-a716-446655440000"
+ * - Prefixed: "550e8400-e29b-41d4-a716-446655440000__read_file"
+ * - Both forms are accepted for backward compatibility
+ */
+
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import {
   CallToolRequestSchema,
@@ -38,6 +65,7 @@ import {
   withTimeout
 } from "./security-utils.js";
 import { debugLog, debugError } from "./debug-log.js";
+import { withErrorHandling } from "./error-handler.js";
 import {
   createDocumentStaticTool,
   listDocumentsStaticTool,
@@ -46,12 +74,49 @@ import {
   updateDocumentStaticTool
 } from "./tools/static-tools.js";
 import { StaticToolHandlers } from "./handlers/static-handlers.js";
+import { 
+  createSlugPrefixedToolName, 
+  parseSlugPrefixedToolName, 
+  parsePrefixedToolName as parseAnyPrefixedToolName,
+  isValidUuid
+} from "./slug-utils.js";
 
 const require = createRequire(import.meta.url);
 const packageJson = require('../package.json');
 
 // Map to store prefixed tool name -> { originalName, serverUuid }
 const toolToServerMap: Record<string, { originalName: string; serverUuid: string; }> = {};
+
+// Configuration for UUID-based tool prefixing
+// Set PLUGGEDIN_UUID_TOOL_PREFIXING=false to disable UUID prefixing (for backward compatibility)
+// When enabled, tools are returned with format: {server_uuid}__{original_tool_name}
+// When disabled, tools are returned with their original names
+const UUID_TOOL_PREFIXING_ENABLED = process.env.PLUGGEDIN_UUID_TOOL_PREFIXING !== 'false'; // Default to true
+
+/**
+ * Creates a UUID-prefixed tool name
+ * Format: {server_uuid}__{original_tool_name}
+ */
+export function createPrefixedToolName(serverUuid: string, originalName: string): string {
+  return `${serverUuid}__${originalName}`;
+}
+
+/**
+ * Parses a potentially prefixed tool name (UUID-based for backward compatibility)
+ * Returns { originalName, serverUuid } or null if not prefixed
+ */
+export function parsePrefixedToolName(toolName: string): { originalName: string; serverUuid: string } | null {
+  const parsed = parseAnyPrefixedToolName(toolName);
+  
+  if (!parsed || parsed.prefixType !== 'uuid') {
+    return null; // Not a UUID-prefixed name
+  }
+  
+  return {
+    originalName: parsed.originalName,
+    serverUuid: parsed.serverIdentifier
+  };
+}
 
 // Interface for instruction data from API
 interface InstructionData {
@@ -259,11 +324,15 @@ export const createServer = async () => {
      
      try {
 
-       const apiUrl = `${baseUrl}/api/tools`; // Assuming this is the correct endpoint
+       // Build API URL with prefixing parameter
+       const apiUrl = new URL(`${baseUrl}/api/tools`);
+       if (UUID_TOOL_PREFIXING_ENABLED) {
+         apiUrl.searchParams.set('prefix_tools', 'true');
+       }
 
        // Fetch the list of tools (which include original names and server info)
        // The API returns an object like { tools: [], message?: "..." }
-       const response = await axios.get<{ tools: (Tool & { _serverUuid: string, _serverName?: string })[], message?: string }>(apiUrl, {
+       const response = await axios.get<{ tools: (Tool & { _serverUuid: string, _serverName?: string })[], message?: string }>(apiUrl.toString(), {
          headers: {
            Authorization: `Bearer ${apiKey}`,
          },
@@ -275,15 +344,31 @@ export const createServer = async () => {
 
        // Clear previous mapping and populate with new data
        Object.keys(toolToServerMap).forEach(key => delete toolToServerMap[key]); // Clear map
-       
+
        // Create mappings for each tool to its server
        fetchedTools.forEach(tool => {
-         // Store mapping with original name as the key
          if (tool.name && tool._serverUuid) {
-            toolToServerMap[tool.name] = { 
-              originalName: tool.name, // No transformation needed anymore
-              serverUuid: tool._serverUuid 
-            };
+           // Store mapping with the tool name as returned by API (may be prefixed or not)
+           toolToServerMap[tool.name] = {
+             originalName: tool.name, // Will be updated if prefixed
+             serverUuid: tool._serverUuid
+           };
+
+           // If UUID prefixing is enabled and the tool name is not already prefixed,
+           // we need to handle backward compatibility
+           if (UUID_TOOL_PREFIXING_ENABLED) {
+             // Use shared helper for parsing prefixed tool names
+             const parsed = parseAnyPrefixedToolName(tool.name);
+             if (parsed) {
+               // Tool name is prefixed, extract original name
+               toolToServerMap[tool.name].originalName = parsed.originalName;
+               debugLog(`[ListTools Handler] Tool ${tool.name} is ${parsed.prefixType}-prefixed, original: ${parsed.originalName}`);
+             } else {
+               // Tool name is not prefixed, this might be for backward compatibility
+               // In this case, the originalName should remain as tool.name
+               debugLog(`[ListTools Handler] Tool ${tool.name} is not prefixed, using as-is for backward compatibility`);
+             }
+           }
          } else {
             debugError(`[ListTools Handler] Missing tool name or UUID for tool: ${tool.name}`);
          }
@@ -312,7 +397,7 @@ export const createServer = async () => {
 
        return { tools: allToolsForClient, nextCursor: undefined };
 
-     } catch (error: any) {
+     } catch (error: unknown) {
        // Log API fetch error but still return the static tool
        let sanitizedError = "Failed to list tools";
        if (axios.isAxiosError(error) && error.response?.status) {
@@ -404,7 +489,7 @@ export const createServer = async () => {
                         if (toolsCount > 0) {
                             const tools = toolsResponse.data?.tools || toolsResponse.data || [];
                             dataContent += `## ⚡ Dynamic MCP Tools (${toolsCount}) - From Connected Servers:\n`;
-                            tools.forEach((tool: any, index: number) => {
+                            tools.forEach((tool: Tool, index: number) => {
                                 dataContent += `${index + 1}. **${tool.name}**`;
                                 if (tool.description) {
                                     dataContent += ` - ${tool.description}`;
@@ -420,7 +505,7 @@ export const createServer = async () => {
                         // Add prompts section  
                         if (promptsCount > 0) {
                             dataContent += `## 💬 Available Prompts (${promptsCount}):\n`;
-                            promptsResponse.data.forEach((prompt: any, index: number) => {
+                            promptsResponse.data.forEach((prompt: { name: string; description?: string }, index: number) => {
                                 dataContent += `${index + 1}. **${prompt.name}**`;
                                 if (prompt.description) {
                                     dataContent += ` - ${prompt.description}`;
@@ -433,7 +518,7 @@ export const createServer = async () => {
                         // Add resources section
                         if (resourcesCount > 0) {
                             dataContent += `## 📄 Available Resources (${resourcesCount}):\n`;
-                            resourcesResponse.data.forEach((resource: any, index: number) => {
+                            resourcesResponse.data.forEach((resource: { uri: string; name: string; description?: string; mimeType?: string }, index: number) => {
                                 dataContent += `${index + 1}. **${resource.name || resource.uri}**`;
                                 if (resource.description) {
                                     dataContent += ` - ${resource.description}`;
@@ -449,7 +534,7 @@ export const createServer = async () => {
                         // Add templates section
                         if (templatesCount > 0) {
                             dataContent += `## 📋 Available Resource Templates (${templatesCount}):\n`;
-                            templatesResponse.data.forEach((template: any, index: number) => {
+                            templatesResponse.data.forEach((template: ResourceTemplate, index: number) => {
                                 dataContent += `${index + 1}. **${template.name || template.uriTemplate}**`;
                                 if (template.description) {
                                     dataContent += ` - ${template.description}`;
@@ -480,7 +565,7 @@ export const createServer = async () => {
                         shouldRunDiscovery = true;
                         existingDataSummary = "No cached dynamic data found";
                     }
-                } catch (cacheError: any) {
+                } catch (cacheError: unknown) {
                     // Error checking cache, show static tools and proceed with discovery
                     
                     // Show static tools even when cache check fails
@@ -581,7 +666,7 @@ export const createServer = async () => {
                             if (toolsCount > 0) {
                                 const tools = toolsResponse.data?.tools || toolsResponse.data || [];
                                 forceRefreshContent += `## ⚡ Dynamic MCP Tools (${toolsCount}) - From Connected Servers:\n`;
-                                tools.forEach((tool: any, index: number) => {
+                                tools.forEach((tool: Tool, index: number) => {
                                     forceRefreshContent += `${index + 1}. **${tool.name}**`;
                                     if (tool.description) {
                                         forceRefreshContent += ` - ${tool.description}`;
@@ -597,7 +682,7 @@ export const createServer = async () => {
                             // Add prompts section  
                             if (promptsCount > 0) {
                                 forceRefreshContent += `## 💬 Available Prompts (${promptsCount}):\n`;
-                                promptsResponse.data.forEach((prompt: any, index: number) => {
+                                promptsResponse.data.forEach((prompt: { name: string; description?: string }, index: number) => {
                                     forceRefreshContent += `${index + 1}. **${prompt.name}**`;
                                     if (prompt.description) {
                                         forceRefreshContent += ` - ${prompt.description}`;
@@ -610,7 +695,7 @@ export const createServer = async () => {
                             // Add resources section
                             if (resourcesCount > 0) {
                                 forceRefreshContent += `## 📄 Available Resources (${resourcesCount}):\n`;
-                                resourcesResponse.data.forEach((resource: any, index: number) => {
+                                resourcesResponse.data.forEach((resource: { uri: string; name: string; description?: string; mimeType?: string }, index: number) => {
                                     forceRefreshContent += `${index + 1}. **${resource.name || resource.uri}**`;
                                     if (resource.description) {
                                         forceRefreshContent += ` - ${resource.description}`;
@@ -626,7 +711,7 @@ export const createServer = async () => {
                             // Add templates section
                             if (templatesCount > 0) {
                                 forceRefreshContent += `## 📋 Available Resource Templates (${templatesCount}):\n`;
-                                templatesResponse.data.forEach((template: any, index: number) => {
+                                templatesResponse.data.forEach((template: ResourceTemplate, index: number) => {
                                     forceRefreshContent += `${index + 1}. **${template.name || template.uriTemplate}**`;
                                     if (template.description) {
                                         forceRefreshContent += ` - ${template.description}`;
@@ -641,7 +726,7 @@ export const createServer = async () => {
                             
                             forceRefreshContent += `📝 **Note**: Fresh discovery is running in background. Call pluggedin_discover_tools() again in 10-30 seconds to see if any new tools were discovered.`;
 
-                        } catch (cacheError: any) {
+                        } catch (cacheError: unknown) {
                             // If we can't get cached data, just show static tools
                             forceRefreshContent = server_uuid 
                                 ? `🔄 Force refresh initiated for server ${server_uuid}. Discovery is running in background.\n\nCould not retrieve cached data, showing static tools:\n\n`
@@ -713,7 +798,7 @@ export const createServer = async () => {
                             isError: false,
                         } as ToolExecutionResult;
 
-                    } catch (apiError: any) {
+                    } catch (apiError: unknown) {
                         // Log failed discovery
                         logMcpActivity({
                             action: 'tool_call',
@@ -727,7 +812,7 @@ export const createServer = async () => {
                         
                          const errorMsg = axios.isAxiosError(apiError)
                             ? `API Error (${apiError.response?.status}): ${apiError.response?.data?.error || apiError.message}`
-                            : apiError.message;
+                            : (apiError instanceof Error ? apiError.message : 'Unknown error');
                          throw new Error(`Failed to trigger discovery via API: ${errorMsg}`);
                     }
                 }
@@ -779,7 +864,7 @@ export const createServer = async () => {
                     isError: false,
                 } as ToolExecutionResult; // Cast to expected type
 
-            } catch (apiError: any) {
+            } catch (apiError: unknown) {
                  // Log failed RAG query
                  logMcpActivity({
                      action: 'tool_call',
@@ -847,7 +932,7 @@ export const createServer = async () => {
                     isError: false,
                 } as ToolExecutionResult; // Cast to expected type
 
-            } catch (apiError: any) {
+            } catch (apiError: unknown) {
                  // Log failed notification
                  logMcpActivity({
                      action: 'tool_call',
@@ -940,7 +1025,7 @@ export const createServer = async () => {
                     isError: false,
                 } as ToolExecutionResult;
 
-            } catch (apiError: any) {
+            } catch (apiError: unknown) {
                  // Log failed list
                  logMcpActivity({
                      action: 'tool_call',
@@ -999,7 +1084,7 @@ export const createServer = async () => {
                     isError: false,
                 } as ToolExecutionResult;
 
-            } catch (apiError: any) {
+            } catch (apiError: unknown) {
                  // Log failed mark as done
                  logMcpActivity({
                      action: 'tool_call',
@@ -1063,7 +1148,7 @@ export const createServer = async () => {
                     isError: false,
                 } as ToolExecutionResult;
 
-            } catch (apiError: any) {
+            } catch (apiError: unknown) {
                  // Log failed delete
                  logMcpActivity({
                      action: 'tool_call',
@@ -1106,16 +1191,47 @@ export const createServer = async () => {
         }
 
         // Look up the downstream tool in our map
-        const toolInfo = toolToServerMap[requestedToolName];
-        if (!toolInfo) {
-            throw new Error(`Tool not found: ${requestedToolName}`);
+        let toolInfo = toolToServerMap[requestedToolName];
+        let originalName: string;
+        let serverUuid: string;
+
+        if (toolInfo) {
+            // Tool found directly in map
+            originalName = toolInfo.originalName;
+            serverUuid = toolInfo.serverUuid;
+        } else {
+            // Tool not found directly, try parsing as a prefixed name for backward compatibility
+            const parsed = parseAnyPrefixedToolName(requestedToolName);
+            if (parsed) {
+                // This is a prefixed tool name that wasn't in our map
+                // Try to find the tool by its original name and server identifier
+                const originalToolInfo = Object.values(toolToServerMap).find(
+                    info => info.originalName === parsed.originalName && (
+                        parsed.prefixType === 'slug' || 
+                        (parsed.prefixType === 'uuid' && info.serverUuid === parsed.serverIdentifier)
+                    )
+                );
+
+                if (originalToolInfo) {
+                    originalName = parsed.originalName;
+                    serverUuid = originalToolInfo.serverUuid;
+                    debugLog(`[CallTool Handler] Found ${parsed.prefixType}-prefixed tool: ${requestedToolName} -> ${originalName} on server ${serverUuid}`);
+                } else {
+                    throw new Error(`Tool not found: ${requestedToolName} (parsed as server ${parsed.prefixType} ${parsed.serverIdentifier}, tool ${parsed.originalName})`);
+                }
+            } else {
+                // Not a prefixed name and not in map
+                throw new Error(`Tool not found: ${requestedToolName}`);
+            }
         }
 
-        const { originalName, serverUuid } = toolInfo;
-
         // Basic server UUID validation
-        if (!serverUuid || typeof serverUuid !== 'string') {
-            throw new Error("Invalid server UUID");
+        if (
+            !serverUuid ||
+            typeof serverUuid !== 'string' ||
+            !isValidUuid(serverUuid)
+        ) {
+            throw new Error("Invalid server UUID format");
         }
 
         // Get the downstream server session
@@ -1430,10 +1546,10 @@ The proxy acts as a unified gateway to all your MCP capabilities while providing
             messages: messages,
           } as z.infer<typeof GetPromptResultSchema>; // Ensure correct type
 
-        } catch (apiError: any) {
+        } catch (apiError: unknown) {
            const errorMsg = axios.isAxiosError(apiError)
               ? `API Error (${apiError.response?.status}) fetching instruction ${name}: ${apiError.response?.data?.error || apiError.message}`
-              : apiError.message;
+              : apiError instanceof Error ? apiError.message : String(apiError);
               
            // Log failed custom instruction retrieval
            logMcpActivity({
@@ -1552,7 +1668,7 @@ The proxy acts as a unified gateway to all your MCP capabilities while providing
           }
         }
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       const errorMessage = axios.isAxiosError(error)
         ? `API Error (${error.response?.status}) resolving/getting prompt ${name}: ${error.response?.data?.error || error.message}`
         : error instanceof Error
@@ -1564,109 +1680,93 @@ The proxy acts as a unified gateway to all your MCP capabilities while providing
   });
 
   // List Prompts Handler - Fetches aggregated list from Pluggedin App API
-  server.setRequestHandler(ListPromptsRequestSchema, async (request) => {
-    try {
-      const apiKey = getPluggedinMCPApiKey();
-      const baseUrl = getPluggedinMCPApiBaseUrl();
-      if (!apiKey || !baseUrl) {
-        throw new Error("Pluggedin API Key or Base URL is not configured.");
-      }
-
-      const promptsApiUrl = `${baseUrl}/api/prompts`;
-      const customInstructionsApiUrl = `${baseUrl}/api/custom-instructions`; // This endpoint should return full instruction data
-
-      // Fetch both standard prompts and custom instructions concurrently
-      const [promptsResponse, customInstructionsResponse] = await Promise.all([
-        axios.get<z.infer<typeof ListPromptsResultSchema>["prompts"]>(promptsApiUrl, {
-          headers: { Authorization: `Bearer ${apiKey}` },
-          timeout: 10000,
-        }),
-        // API should return: [{ name: string, description: string, instruction: string (JSON), _serverUuid: string }]
-        axios.get<z.infer<typeof ListPromptsResultSchema>["prompts"]>(customInstructionsApiUrl, {
-          headers: { Authorization: `Bearer ${apiKey}` },
-          timeout: 10000,
-        })
-      ]);
-
-      const standardPrompts = promptsResponse.data || [];
-      const customInstructionsAsPrompts = customInstructionsResponse.data || [];
-
-      // Clear previous instruction mapping and populate with new data
-      Object.keys(instructionToServerMap).forEach(key => delete instructionToServerMap[key]); // Clear map
-      
-      // Store the full instruction data from API
-      // The API should return objects with: name, description, instruction (JSON content), _serverUuid
-      customInstructionsAsPrompts.forEach(instr => {
-        if (instr.name) {
-          // Store the entire instruction object for later retrieval
-          instructionToServerMap[instr.name] = instr;
-        } else {
-            debugError(`[ListPrompts Handler] Missing name for custom instruction:`, instr);
-        }
-      });
-
-      // Merge the results (Remove internal _serverUuid from custom instructions before sending to client)
-      const allPrompts = [
-          proxyCapabilitiesStaticPrompt, // Add static proxy capabilities prompt
-          ...standardPrompts,
-          ...customInstructionsAsPrompts.map(({ _serverUuid, ...rest }) => rest)
-      ];
-
-      // Wrap the combined array in the expected structure for the MCP response
-      // Note: Pagination not handled here
-      return { prompts: allPrompts, nextCursor: undefined };
-
-    } catch (error: any) {
-      const errorMessage = axios.isAxiosError(error)
-        ? `API Error (${error.response?.status}): ${error.message}`
-        : error instanceof Error
-        ? error.message
-        : "Unknown error fetching prompts or custom instructions from API";
-      debugError("[ListPrompts Handler Error]", errorMessage);
-      // Let SDK handle error formatting
-      throw new Error(`Failed to list prompts: ${errorMessage}`);
+  // Extract ListPrompts handler logic for error handling
+  const listPromptsHandler = withErrorHandling(async (request: any) => {
+    const apiKey = getPluggedinMCPApiKey();
+    const baseUrl = getPluggedinMCPApiBaseUrl();
+    if (!apiKey || !baseUrl) {
+      throw new Error("Pluggedin API Key or Base URL is not configured.");
     }
+
+    const promptsApiUrl = `${baseUrl}/api/prompts`;
+    const customInstructionsApiUrl = `${baseUrl}/api/custom-instructions`; // This endpoint should return full instruction data
+
+    // Fetch both standard prompts and custom instructions concurrently
+    const [promptsResponse, customInstructionsResponse] = await Promise.all([
+      axios.get<z.infer<typeof ListPromptsResultSchema>["prompts"]>(promptsApiUrl, {
+        headers: { Authorization: `Bearer ${apiKey}` },
+        timeout: 10000,
+      }),
+      // API should return: [{ name: string, description: string, instruction: string (JSON), _serverUuid: string }]
+      axios.get<z.infer<typeof ListPromptsResultSchema>["prompts"]>(customInstructionsApiUrl, {
+        headers: { Authorization: `Bearer ${apiKey}` },
+        timeout: 10000,
+      })
+    ]);
+
+    const standardPrompts = promptsResponse.data || [];
+    const customInstructionsAsPrompts = customInstructionsResponse.data || [];
+
+    // Clear previous instruction mapping and populate with new data
+    Object.keys(instructionToServerMap).forEach(key => delete instructionToServerMap[key]); // Clear map
+    
+    // Store the full instruction data from API
+    // The API should return objects with: name, description, instruction (JSON content), _serverUuid
+    customInstructionsAsPrompts.forEach(instr => {
+      if (instr.name) {
+        // Store the entire instruction object for later retrieval
+        instructionToServerMap[instr.name] = instr;
+      } else {
+          debugError(`[ListPrompts Handler] Missing name for custom instruction:`, instr);
+      }
+    });
+
+    // Merge the results (Remove internal _serverUuid from custom instructions before sending to client)
+    const allPrompts = [
+        proxyCapabilitiesStaticPrompt, // Add static proxy capabilities prompt
+        ...standardPrompts,
+        ...customInstructionsAsPrompts.map(({ _serverUuid, ...rest }) => rest)
+    ];
+
+    // Wrap the combined array in the expected structure for the MCP response
+    // Note: Pagination not handled here
+    return { prompts: allPrompts, nextCursor: undefined };
+  }, {
+    action: 'list_prompts'
   });
+
+  server.setRequestHandler(ListPromptsRequestSchema, listPromptsHandler);
 
 
   // List Resources Handler - Fetches aggregated list from Pluggedin App API
-  server.setRequestHandler(ListResourcesRequestSchema, async (request) => {
-    try {
-      const apiKey = getPluggedinMCPApiKey();
-      const baseUrl = getPluggedinMCPApiBaseUrl();
-      if (!apiKey || !baseUrl) {
-        throw new Error("Pluggedin API Key or Base URL is not configured.");
-      }
-
-      const apiUrl = `${baseUrl}/api/resources`; // Assuming this is the correct endpoint
-
-
-      const response = await axios.get<z.infer<typeof ListResourcesResultSchema>["resources"]>(apiUrl, {
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-        },
-        timeout: 10000, // Add a timeout for the API call (e.g., 10 seconds)
-      });
-
-      // The API currently returns just the array, wrap it in the expected structure
-      const resources = response.data || [];
-
-
-      // Note: Pagination across servers via the API is not implemented here.
-      // The API would need to support cursor-based pagination for this to work fully.
-      return { resources: resources, nextCursor: undefined };
-
-    } catch (error: any) {
-      const errorMessage = axios.isAxiosError(error)
-        ? `API Error (${error.response?.status}): ${error.message}`
-        : error instanceof Error
-        ? error.message
-        : "Unknown error fetching resources from API";
-      debugError("[ListResources Handler Error]", errorMessage);
-      // Let SDK handle error formatting
-      throw new Error(`Failed to list resources: ${errorMessage}`);
+  // Extract ListResources handler logic for error handling
+  const listResourcesHandler = withErrorHandling(async (request: any) => {
+    const apiKey = getPluggedinMCPApiKey();
+    const baseUrl = getPluggedinMCPApiBaseUrl();
+    if (!apiKey || !baseUrl) {
+      throw new Error("Pluggedin API Key or Base URL is not configured.");
     }
+
+    const apiUrl = `${baseUrl}/api/resources`; // Assuming this is the correct endpoint
+
+    const response = await axios.get<z.infer<typeof ListResourcesResultSchema>["resources"]>(apiUrl, {
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+      },
+      timeout: 10000, // Add a timeout for the API call (e.g., 10 seconds)
+    });
+
+    // The API currently returns just the array, wrap it in the expected structure
+    const resources = response.data || [];
+
+    // Note: Pagination across servers via the API is not implemented here.
+    // The API would need to support cursor-based pagination for this to work fully.
+    return { resources: resources, nextCursor: undefined };
+  }, {
+    action: 'list_resources'
   });
+
+  server.setRequestHandler(ListResourcesRequestSchema, listResourcesHandler);
 
   // Read Resource Handler - Simplified to only proxy
   // WARNING: This handler will likely fail now because resourceToClient is no longer populated.
@@ -1782,7 +1882,7 @@ The proxy acts as a unified gateway to all your MCP capabilities while providing
              }
         }
 
-    } catch (error: any) {
+    } catch (error: unknown) {
         const errorMessage = axios.isAxiosError(error)
             ? `API Error (${error.response?.status}) resolving URI ${uri}: ${error.response?.data?.error || error.message}`
             : error instanceof Error
@@ -1795,43 +1895,34 @@ The proxy acts as a unified gateway to all your MCP capabilities while providing
   });
 
   // List Resource Templates Handler - Fetches aggregated list from Pluggedin App API
-  server.setRequestHandler(ListResourceTemplatesRequestSchema, async (request) => {
-    try {
-      const apiKey = getPluggedinMCPApiKey();
-      const baseUrl = getPluggedinMCPApiBaseUrl();
-      if (!apiKey || !baseUrl) {
-        throw new Error("Pluggedin API Key or Base URL is not configured.");
-      }
-
-      const apiUrl = `${baseUrl}/api/resource-templates`; // New endpoint
-
-
-      // Fetch the list of templates
-      // Assuming the API returns ResourceTemplate[] directly
-      const response = await axios.get<ResourceTemplate[]>(apiUrl, {
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-        },
-        timeout: 10000, // Add a timeout
-      });
-
-      const templates = response.data || [];
-
-
-      // Wrap the array in the expected structure for the MCP response
-      return { resourceTemplates: templates, nextCursor: undefined }; // Pagination not handled
-
-    } catch (error: any) {
-      const errorMessage = axios.isAxiosError(error)
-        ? `API Error (${error.response?.status}): ${error.message}`
-        : error instanceof Error
-        ? error.message
-        : "Unknown error fetching resource templates from API";
-      debugError("[ListResourceTemplates Handler Error]", errorMessage);
-      // Let SDK handle error formatting
-      throw new Error(`Failed to list resource templates: ${errorMessage}`);
+  // Extract ListResourceTemplates handler logic for error handling
+  const listResourceTemplatesHandler = withErrorHandling(async (request: any) => {
+    const apiKey = getPluggedinMCPApiKey();
+    const baseUrl = getPluggedinMCPApiBaseUrl();
+    if (!apiKey || !baseUrl) {
+      throw new Error("Pluggedin API Key or Base URL is not configured.");
     }
+
+    const apiUrl = `${baseUrl}/api/resource-templates`; // New endpoint
+
+    // Fetch the list of templates
+    // Assuming the API returns ResourceTemplate[] directly
+    const response = await axios.get<ResourceTemplate[]>(apiUrl, {
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+      },
+      timeout: 10000, // Add a timeout
+    });
+
+    const templates = response.data || [];
+
+    // Wrap the array in the expected structure for the MCP response
+    return { resourceTemplates: templates, nextCursor: undefined }; // Pagination not handled
+  }, {
+    action: 'list_resource_templates'
   });
+
+  server.setRequestHandler(ListResourceTemplatesRequestSchema, listResourceTemplatesHandler);
 
   // Ping Handler - Responds to simple ping requests
   server.setRequestHandler(PingRequestSchema, async (request) => {
