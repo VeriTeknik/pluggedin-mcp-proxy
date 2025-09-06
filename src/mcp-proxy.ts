@@ -1457,24 +1457,47 @@ The proxy acts as a unified gateway to all your MCP capabilities while providing
                 
               if (Array.isArray(parsedInstruction)) {
                 for (const msg of parsedInstruction) {
-                  if (msg.role === "system") {
-                    // Convert system messages to user messages with a prefix
+                  // Handle simple strings (for backward compatibility or direct input)
+                  if (typeof msg === 'string') {
                     messages.push({
                       role: "user",
                       content: {
                         type: "text",
-                        text: `System: ${msg.content}`
+                        text: msg
                       }
                     });
-                  } else if (msg.role === "user" || msg.role === "assistant") {
-                    // Keep user and assistant messages as-is
-                    messages.push({
-                      role: msg.role,
-                      content: {
-                        type: "text",
-                        text: msg.content
-                      }
-                    });
+                  }
+                  // Handle objects with content but no role
+                  else if (typeof msg === 'object' && msg !== null) {
+                    // Check if it has a role property
+                    if (msg.role === "system") {
+                      // Convert system messages to user messages with a prefix
+                      messages.push({
+                        role: "user",
+                        content: {
+                          type: "text",
+                          text: `System: ${typeof msg.content === 'string' ? msg.content : msg.content?.text || msg.content}`
+                        }
+                      });
+                    } else if (msg.role === "user" || msg.role === "assistant") {
+                      // Keep user and assistant messages as-is
+                      messages.push({
+                        role: msg.role,
+                        content: {
+                          type: "text",
+                          text: typeof msg.content === 'string' ? msg.content : msg.content?.text || msg.content
+                        }
+                      });
+                    } else if (!msg.role && msg.content) {
+                      // No role specified, treat as system message
+                      messages.push({
+                        role: "user",
+                        content: {
+                          type: "text",
+                          text: `System: ${typeof msg.content === 'string' ? msg.content : msg.content?.text || msg.content}`
+                        }
+                      });
+                    }
                   }
                 }
               } else {
