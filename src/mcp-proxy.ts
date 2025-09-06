@@ -1305,6 +1305,7 @@ export const createServer = async () => {
     const { name, arguments: args } = request.params;
     const meta = request.params._meta;
     const instructionPrefix = 'pluggedin_instruction_';
+    const systemContextSuffix = '__system_context';
 
     // Handle static proxy capabilities prompt first
     if (name === proxyCapabilitiesStaticPrompt.name) {
@@ -1433,7 +1434,11 @@ The proxy acts as a unified gateway to all your MCP capabilities while providing
         throw new Error("Pluggedin API Key or Base URL is not configured.");
       }
 
-      if (name.startsWith(instructionPrefix)) {
+      // Check for both old and new naming patterns for custom instructions
+      const isOldInstructionFormat = name.startsWith(instructionPrefix);
+      const isNewInstructionFormat = name.endsWith(systemContextSuffix);
+      
+      if (isOldInstructionFormat || isNewInstructionFormat) {
         // --- Handle Custom Instruction Request ---
         const instructionData = instructionToServerMap[name];
         if (!instructionData) {
@@ -1735,6 +1740,7 @@ The proxy acts as a unified gateway to all your MCP capabilities while providing
     
     // Store the full instruction data from API
     // The API should return objects with: name, description, instruction (JSON content), _serverUuid
+    // Names can be either old format (pluggedin_instruction_*) or new format (*__system_context)
     customInstructionsAsPrompts.forEach(instr => {
       if (instr.name) {
         // Store the entire instruction object for later retrieval
