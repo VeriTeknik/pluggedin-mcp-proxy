@@ -71,7 +71,7 @@ These tools are built into Plugged.in and always available:
    - Optional: \`force_refresh\` to bypass cache
 
 ### RAG & Knowledge Management
-2. **pluggedin_rag_query** - Query your document knowledge base
+2. **pluggedin_ask_knowledge_base** - Query your document knowledge base
    - Required: \`query\` - Your search query
 
 ### Notification System
@@ -260,7 +260,7 @@ Plugged.in transforms how you work with AI by providing a unified platform for m
 
 ### 📚 **Document & Knowledge Management**
 
-#### 3. **pluggedin_rag_query**
+#### 3. **pluggedin_ask_knowledge_base**
 - **What it does**: Search through your entire knowledge base using AI
 - **Parameters**:
   - \`query\` (required): Your search question (1-1000 characters)
@@ -359,7 +359,7 @@ Plugged.in transforms how you work with AI by providing a unified platform for m
 1. **Set Up**: Configure \`PLUGGEDIN_API_KEY\` and \`PLUGGEDIN_API_BASE_URL\`
 2. **Discover**: Use \`pluggedin_discover_tools\` to see all available capabilities
 3. **Create**: Start building your AI knowledge base with \`pluggedin_create_document\`
-4. **Search**: Find information instantly with \`pluggedin_rag_query\` or \`pluggedin_search_documents\`
+4. **Search**: Find information instantly with \`pluggedin_ask_knowledge_base\` or \`pluggedin_search_documents\`
 5. **Collaborate**: Let multiple AI models contribute to your documents
 
 ## 💡 **Common Use Cases**
