@@ -7,7 +7,7 @@ import {
   isDebugEnabled 
 } from "../utils.js";
 import { logMcpActivity, createExecutionTimer } from "../notification-logger.js";
-import { debugLog, debugError } from "../debug-log.js";
+import { debugError } from "../debug-log.js";
 import { getApiKeySetupMessage } from "./static-handlers-helpers.js";
 import {
   DiscoverToolsInputSchema,
@@ -23,11 +23,8 @@ import {
   UpdateDocumentInputSchema
 } from '../schemas/index.js';
 import { getMcpServers } from "../fetch-pluggedinmcp.js";
-import { getSession, initSessions } from "../sessions.js";
-import { getSessionKey } from "../utils.js";
 import { 
   buildServerContextsMap, 
-  extractCustomInstructions,
   ProcessedServerContext,
   ServerContext,
   toLegacyServerContext,
@@ -254,7 +251,8 @@ Set environment variables in your terminal before launching the editor.
 
   async handleDiscoverTools(args: any): Promise<ToolExecutionResult> {
     debugError(`[CallTool Handler] Executing static tool: ${discoverToolsStaticTool.name}`);
-    const validatedArgs = DiscoverToolsInputSchema.parse(args ?? {});
+    // Validate args but not currently using the fields
+    DiscoverToolsInputSchema.parse(args ?? {});
 
     const timer = createExecutionTimer();
     try {

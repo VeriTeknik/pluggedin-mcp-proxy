@@ -34,12 +34,10 @@ import {
   ListToolsRequestSchema,
   ReadResourceRequestSchema,
   Tool,
-  ListToolsResultSchema,
   ListPromptsResultSchema,
   ListResourcesResultSchema,
   ReadResourceResultSchema,
   ListResourceTemplatesRequestSchema,
-  ListResourceTemplatesResultSchema,
   ResourceTemplate,
   CompatibilityCallToolResultSchema,
   GetPromptResultSchema,
@@ -48,19 +46,16 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import { getMcpServers } from "./fetch-pluggedinmcp.js";
-import { getSessionKey, sanitizeName, isDebugEnabled, getPluggedinMCPApiKey, getPluggedinMCPApiBaseUrl } from "./utils.js";
+import { getSessionKey, getPluggedinMCPApiKey, getPluggedinMCPApiBaseUrl } from "./utils.js";
 import { cleanupAllSessions, getSession, initSessions } from "./sessions.js";
-import { ConnectedClient } from "./client.js";
 import axios from "axios";
 import { zodToJsonSchema } from 'zod-to-json-schema';
-import { readFileSync } from 'fs';
 import { createRequire } from 'module';
 import { ToolExecutionResult, ServerParameters } from "./types.js";
 import { logMcpActivity, createExecutionTimer } from "./notification-logger.js";
 import { 
   RateLimiter, 
   sanitizeErrorMessage, 
-  validateToolName, 
   validateRequestSize,
   withTimeout
 } from "./security-utils.js";
@@ -75,8 +70,6 @@ import {
 } from "./tools/static-tools.js";
 import { StaticToolHandlers } from "./handlers/static-handlers.js";
 import { 
-  createSlugPrefixedToolName, 
-  parseSlugPrefixedToolName, 
   parsePrefixedToolName as parseAnyPrefixedToolName,
   isValidUuid
 } from "./slug-utils.js";
@@ -340,7 +333,7 @@ export const createServer = async () => {
        });
 
        // Access the 'tools' array from the response payload
-       const fetchedTools = response.data?.tools || [];
+       fetchedTools = response.data?.tools || [];
 
        // Clear previous mapping and populate with new data
        Object.keys(toolToServerMap).forEach(key => delete toolToServerMap[key]); // Clear map
@@ -373,13 +366,19 @@ export const createServer = async () => {
             debugError(`[ListTools Handler] Missing tool name or UUID for tool: ${tool.name}`);
          }
        });
-
-       // Fetch server configurations with custom instructions
-       const serverParams = await getMcpServers(false);
        
-       // Build server contexts with parsed constraints
-       const { buildServerContextsMap } = await import('./utils/custom-instructions.js');
-       const serverContexts = buildServerContextsMap(Object.values(serverParams));
+       // Fetch server configurations with custom instructions
+       let serverContexts = new Map();
+       try {
+         const serverParams = await getMcpServers(false);
+         
+         // Build server contexts with parsed constraints
+         const { buildServerContextsMap } = await import('./utils/custom-instructions.js');
+         serverContexts = buildServerContextsMap(Object.values(serverParams));
+       } catch (contextError) {
+         // Log error but continue without custom instructions
+         debugError('[ListTools Handler] Failed to fetch server contexts:', contextError);
+       }
        
        // Prepare the response payload with custom instructions and constraints in metadata
        const toolsForClient: Tool[] = fetchedTools.map(({ _serverUuid, _serverName, ...rest }) => {
@@ -1990,19 +1989,7 @@ The proxy acts as a unified gateway to all your MCP capabilities while providing
 
   // Ping Handler - Responds to simple ping requests
   server.setRequestHandler(PingRequestSchema, async (request) => {
-    
-    // Basic health information
-    const healthInfo = {
-      status: "ok",
-      timestamp: new Date().toISOString(),
-      version: packageJson.version,
-      sessions: Object.keys(toolToServerMap).length,
-      memory: process.memoryUsage(),
-      uptime: process.uptime()
-    };
-    
-    
-    // Return empty object for MCP spec compliance, but log health info
+    // Return empty object for MCP spec compliance
     return {};
   });
 
