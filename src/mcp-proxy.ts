@@ -69,6 +69,7 @@ import {
   updateDocumentStaticTool
 } from "./tools/static-tools.js";
 import { StaticToolHandlers } from "./handlers/static-handlers.js";
+import { formatCustomInstructionsForDiscovery } from "./utils/custom-instructions.js";
 import { 
   parsePrefixedToolName as parseAnyPrefixedToolName,
   isValidUuid
@@ -572,6 +573,9 @@ export const createServer = async () => {
                             });
                         }
 
+                        // Add custom instructions section
+                        dataContent += await formatCustomInstructionsForDiscovery();
+
                         // Log successful cache hit
                         logMcpActivity({
                             action: 'tool_call',
@@ -749,6 +753,9 @@ export const createServer = async () => {
                                 });
                                 forceRefreshContent += `\n`;
                             }
+                            
+                            // Add custom instructions section
+                            forceRefreshContent += await formatCustomInstructionsForDiscovery();
                             
                             forceRefreshContent += `📝 **Note**: Fresh discovery is running in background. Call pluggedin_discover_tools() again in 10-30 seconds to see if any new tools were discovered.`;
 

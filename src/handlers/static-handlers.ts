@@ -270,9 +270,11 @@ Set environment variables in your terminal before launching the editor.
       Object.keys(this.toolToServerMap).forEach(key => delete this.toolToServerMap[key]);
       Object.keys(this.instructionToServerMap).forEach(key => delete this.instructionToServerMap[key]);
 
-      const { data, success, error } = await getMcpServers();
-      if (!success || !data || !Array.isArray(data)) {
-        const errorMsg = `Could not fetch MCP servers: ${error}. Please ensure your Pluggedin API key and URL are correctly configured.`;
+      const serverDict = await getMcpServers();
+      const data = Object.values(serverDict);
+      
+      if (!data || data.length === 0) {
+        const errorMsg = `No MCP servers found. Please ensure your Pluggedin API key and URL are correctly configured.`;
         throw new Error(errorMsg);
       }
 
@@ -301,18 +303,11 @@ Set environment variables in your terminal before launching the editor.
           dataContent += '\n';
         }
 
-        // Show custom instructions as context, not as prompts
-        if (server.customInstructions?.length > 0) {
-          const context = serverContexts.get(server.uuid);
-          if (context) {
-            dataContent += `### Custom Context:\n`;
-            // Just show the formatted context which already includes constraints
-            const lines = context.formattedContext.split('\n');
-            // Skip the header line if it's redundant
-            const startIdx = lines[0].startsWith('### Server Context:') ? 1 : 0;
-            dataContent += lines.slice(startIdx).join('\n');
-            dataContent += '\n';
-          }
+        // Show custom instructions as context if they exist
+        const context = serverContexts.get(server.uuid);
+        if (context) {
+          dataContent += `### Custom Context:\n`;
+          dataContent += `${context.rawInstructions}\n\n`;
         }
       });
 
@@ -343,9 +338,13 @@ Set environment variables in your terminal before launching the editor.
 
       // Add server contexts to the discovery information
       if (serverContexts.size > 0) {
-        dataContent += '\n## Server Contexts (Auto-Injected)\n';
+        dataContent += '\n## 🔧 Server Custom Instructions (Auto-Injected)\n';
         dataContent += 'The following custom instructions are automatically provided to AI assistants:\n\n';
-        dataContent += formatServerInstructionsForDiscovery(serverContexts);
+        
+        for (const [uuid, context] of serverContexts.entries()) {
+          dataContent += `### ${context.serverName}\n`;
+          dataContent += `**Instructions:** ${context.rawInstructions}\n\n`;
+        }
       }
 
       return {

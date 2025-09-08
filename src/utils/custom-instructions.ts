@@ -56,7 +56,9 @@ export function processInstructions(
   serverUuid: string,
   messages: McpMessage[]
 ): ProcessedServerContext | null {
-  if (!messages || messages.length === 0) return null;
+  if (!messages || messages.length === 0) {
+    return null;
+  }
   
   // Extract raw instruction text from messages
   let rawInstructions = '';
@@ -67,7 +69,9 @@ export function processInstructions(
     rawInstructions += (rawInstructions ? '\n' : '') + text;
   });
   
-  if (!rawInstructions) return null;
+  if (!rawInstructions) {
+    return null;
+  }
   
   const constraints: Constraints = {};
   const lowerInstructions = rawInstructions.toLowerCase();
@@ -172,14 +176,30 @@ export function extractCustomInstructions(serverData: any): McpMessage[] | null 
   
   // Handle both array and single instruction formats
   if (Array.isArray(serverData.customInstructions)) {
+    // Check if it's already in McpMessage format (has role and content)
+    if (serverData.customInstructions.length > 0 && 
+        typeof serverData.customInstructions[0] === 'object' &&
+        'role' in serverData.customInstructions[0] &&
+        'content' in serverData.customInstructions[0]) {
+      return serverData.customInstructions;
+    }
+    
+    // If it's a simple string array, convert each string to McpMessage format
+    if (serverData.customInstructions.every((item: any) => typeof item === 'string')) {
+      return serverData.customInstructions.map((text: string) => ({
+        role: "user" as const,
+        content: [{ type: "text" as const, text }]
+      }));
+    }
+    
     return serverData.customInstructions;
   }
   
   // If it's a string, convert to message format
   if (typeof serverData.customInstructions === 'string') {
     return [{
-      role: "user",
-      content: [{ type: "text", text: serverData.customInstructions }]
+      role: "user" as const,
+      content: [{ type: "text" as const, text: serverData.customInstructions }]
     }];
   }
   
@@ -365,4 +385,36 @@ export function formatServerInstructionsForDiscovery(
   }
   
   return sections.join('\n\n---\n\n');
+}
+
+/**
+ * Format custom instructions for discovery output
+ * This function fetches MCP servers and formats their custom instructions
+ * for display in the discovery response
+ */
+export async function formatCustomInstructionsForDiscovery(): Promise<string> {
+  try {
+    // Dynamic import to avoid circular dependency
+    const { getMcpServers } = await import('../fetch-pluggedinmcp.js');
+    const serverDict = await getMcpServers();
+    const servers = Object.values(serverDict);
+    const serverContexts = buildServerContextsMap(servers);
+    
+    if (serverContexts.size === 0) {
+      return '';
+    }
+    
+    let output = '\n## 🔧 Server Custom Instructions (Auto-Injected)\n';
+    output += 'The following custom instructions are automatically provided to AI assistants:\n\n';
+    
+    for (const [uuid, context] of serverContexts.entries()) {
+      output += `### ${context.serverName}\n`;
+      output += `**Instructions:** ${context.rawInstructions}\n\n`;
+    }
+    
+    return output;
+  } catch (error) {
+    // Silently skip custom instructions if there's an error
+    return '';
+  }
 }
