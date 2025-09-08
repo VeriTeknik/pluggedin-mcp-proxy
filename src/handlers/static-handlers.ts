@@ -7,7 +7,7 @@ import {
   isDebugEnabled 
 } from "../utils.js";
 import { logMcpActivity, createExecutionTimer } from "../notification-logger.js";
-import { debugLog, debugError } from "../debug-log.js";
+import { debugError } from "../debug-log.js";
 import { getApiKeySetupMessage } from "./static-handlers-helpers.js";
 import {
   DiscoverToolsInputSchema,
@@ -23,8 +23,15 @@ import {
   UpdateDocumentInputSchema
 } from '../schemas/index.js';
 import { getMcpServers } from "../fetch-pluggedinmcp.js";
-import { getSession, initSessions } from "../sessions.js";
-import { getSessionKey } from "../utils.js";
+import { 
+  buildServerContextsMap, 
+  ProcessedServerContext,
+  ServerContext,
+  toLegacyServerContext,
+  formatServerInstructionsForDiscovery,
+  Constraints,
+  buildConstraintMap
+} from '../utils/custom-instructions.js';
 import {
   setupStaticTool,
   discoverToolsStaticTool,
@@ -56,10 +63,32 @@ interface InstructionData {
  * These tools provide core functionality like discovery, RAG queries, notifications, and document management.
  */
 export class StaticToolHandlers {
+  private serverContexts: Map<string, ProcessedServerContext> = new Map();
+  private constraintMap: Map<string, Constraints> = new Map();
+  
   constructor(
     private toolToServerMap: ToolToServerMap,
     private instructionToServerMap: Record<string, InstructionData>
   ) {}
+
+  getServerContext(serverName: string): ServerContext | undefined {
+    // Find by server name (backwards compatibility)
+    for (const context of this.serverContexts.values()) {
+      if (context.serverName === serverName) {
+        return toLegacyServerContext(context);
+      }
+    }
+    return undefined;
+  }
+
+  getServerContextByUuid(serverUuid: string): ProcessedServerContext | undefined {
+    // Direct UUID lookup - O(1) instead of O(n)
+    return this.serverContexts.get(serverUuid);
+  }
+
+  getConstraints(serverUuid: string): Constraints | undefined {
+    return this.constraintMap.get(serverUuid);
+  }
 
   async handleSetup(args: any): Promise<ToolExecutionResult> {
     const topic = args?.topic || 'getting_started';
@@ -222,7 +251,8 @@ Set environment variables in your terminal before launching the editor.
 
   async handleDiscoverTools(args: any): Promise<ToolExecutionResult> {
     debugError(`[CallTool Handler] Executing static tool: ${discoverToolsStaticTool.name}`);
-    const validatedArgs = DiscoverToolsInputSchema.parse(args ?? {});
+    // Validate args but not currently using the fields
+    DiscoverToolsInputSchema.parse(args ?? {});
 
     const timer = createExecutionTimer();
     try {
@@ -240,13 +270,25 @@ Set environment variables in your terminal before launching the editor.
       Object.keys(this.toolToServerMap).forEach(key => delete this.toolToServerMap[key]);
       Object.keys(this.instructionToServerMap).forEach(key => delete this.instructionToServerMap[key]);
 
-      const { data, success, error } = await getMcpServers();
-      if (!success || !data || !Array.isArray(data)) {
-        const errorMsg = `Could not fetch MCP servers: ${error}. Please ensure your Pluggedin API key and URL are correctly configured.`;
+      const serverDict = await getMcpServers();
+      const data = Object.values(serverDict);
+      
+      if (!data || data.length === 0) {
+        const errorMsg = `No MCP servers found. Please ensure your Pluggedin API key and URL are correctly configured.`;
         throw new Error(errorMsg);
       }
 
       let dataContent = '# Available MCP Servers\n\n';
+      
+      // Build server contexts from custom instructions (UUID-keyed map)
+      const serverContexts = buildServerContextsMap(data);
+      
+      // Store server contexts for use in tool invocations
+      this.serverContexts = serverContexts;
+      
+      // Build constraint map for efficient validation
+      this.constraintMap = buildConstraintMap(serverContexts);
+      
       data.forEach((server: any) => {
         dataContent += `## ${server.name} (${server.uuid})\n`;
         
@@ -261,15 +303,11 @@ Set environment variables in your terminal before launching the editor.
           dataContent += '\n';
         }
 
-        // Process and register custom instructions
-        if (server.customInstructions?.length > 0) {
-          dataContent += `### Instructions (${server.customInstructions.length}):\n`;
-          server.customInstructions.forEach((instruction: any) => {
-            const name = instruction.name || `instruction_${Math.random().toString(36).substring(7)}`;
-            this.instructionToServerMap[name] = server.uuid;
-            dataContent += `- **${name}**: ${instruction.instruction}\n`;
-          });
-          dataContent += '\n';
+        // Show custom instructions as context if they exist
+        const context = serverContexts.get(server.uuid);
+        if (context) {
+          dataContent += `### Custom Context:\n`;
+          dataContent += `${context.rawInstructions}\n\n`;
         }
       });
 
@@ -298,8 +336,25 @@ Set environment variables in your terminal before launching the editor.
         executionTime: timer.stop(),
       }).catch(() => {}); // Ignore notification errors
 
+      // Add server contexts to the discovery information
+      if (serverContexts.size > 0) {
+        dataContent += '\n## 🔧 Server Custom Instructions (Auto-Injected)\n';
+        dataContent += 'The following custom instructions are automatically provided to AI assistants:\n\n';
+        
+        for (const [uuid, context] of serverContexts.entries()) {
+          dataContent += `### ${context.serverName}\n`;
+          dataContent += `**Instructions:** ${context.rawInstructions}\n\n`;
+        }
+      }
+
       return {
-        content: [{ type: "text", text: dataContent }],
+        content: [{ 
+          type: "text", 
+          text: dataContent,
+          metadata: {
+            serverContexts: serverContexts
+          }
+        }],
         isError: false,
       };
     } catch (toolError: any) {

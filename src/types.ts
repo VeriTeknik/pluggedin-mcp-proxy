@@ -27,6 +27,9 @@ export interface ServerParameters {
     tokenUrl?: string;
     scopes?: string[];
   }; // OAuth configuration for authorization code flow
+  // Custom instructions from API
+  customInstructions?: string;
+  customInstructionsDescription?: string;
   // Add other relevant fields fetched from the API if needed
 }
 
