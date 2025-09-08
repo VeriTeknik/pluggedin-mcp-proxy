@@ -374,8 +374,45 @@ export const createServer = async () => {
          }
        });
 
-       // Prepare the response payload according to MCP spec { tools: Tool[] }
-       const toolsForClient: Tool[] = fetchedTools.map(({ _serverUuid, _serverName, ...rest }) => rest);
+       // Fetch server configurations with custom instructions
+       const serverParams = await getMcpServers(false);
+       
+       // Build a map of server UUID to custom instructions
+       const serverInstructions: Record<string, string> = {};
+       Object.values(serverParams).forEach((server: any) => {
+         if (server.uuid && server.customInstructions) {
+           // Convert custom instructions to a readable format
+           const instructions = Array.isArray(server.customInstructions) 
+             ? server.customInstructions.map((msg: any) => {
+                 const content = typeof msg.content === 'string' 
+                   ? msg.content 
+                   : msg.content?.map((c: any) => c.text).join(' ') || '';
+                 return content;
+               }).join(' ')
+             : '';
+           if (instructions) {
+             serverInstructions[server.uuid] = instructions;
+           }
+         }
+       });
+       
+       // Prepare the response payload with custom instructions in metadata
+       const toolsForClient: Tool[] = fetchedTools.map(({ _serverUuid, _serverName, ...rest }) => {
+         // Add custom instructions to tool metadata if available
+         if (_serverUuid && serverInstructions[_serverUuid]) {
+           const toolWithMetadata: any = {
+             ...rest,
+             metadata: {
+               ...(rest.metadata || {}),
+               server: _serverName || _serverUuid,
+               instructions: serverInstructions[_serverUuid]
+             }
+           };
+           return toolWithMetadata;
+         }
+         // Remove internal fields
+         return rest;
+       });
 
        // Note: Pagination not handled here, assumes API returns all tools
 
@@ -1248,12 +1285,38 @@ export const createServer = async () => {
             throw new Error(`Session not found for server UUID: ${serverUuid}`);
         }
 
+        // Get server context from static handlers if available
+        let serverContext: any = undefined;
+        if (staticHandlers) {
+            const context = staticHandlers.getServerContextByUuid(serverUuid);
+            if (context) {
+                // Check if the tool violates any constraints
+                const { validateAgainstConstraints } = await import('./utils/custom-instructions.js');
+                const validation = validateAgainstConstraints(originalName, context.constraints || []);
+                if (!validation.valid) {
+                    throw new Error(validation.reason || 'Tool execution blocked by server constraints');
+                }
+                
+                // Add context to metadata for the downstream server
+                serverContext = {
+                    instructions: context.instructions,
+                    constraints: context.constraints,
+                    isReadOnly: context.isReadOnly
+                };
+            }
+        }
+        
         // Proxy the call to the downstream server using the original tool name
         const timer = createExecutionTimer();
         
         try {
+            // Include server context in metadata if available
+            const enhancedMeta = serverContext 
+                ? { ...meta, serverContext } 
+                : meta;
+            
             const result = await session.client.request(
-                { method: "tools/call", params: { name: originalName, arguments: args, _meta: meta } },
+                { method: "tools/call", params: { name: originalName, arguments: args, _meta: enhancedMeta } },
                  CompatibilityCallToolResultSchema
             );
 
@@ -1717,44 +1780,20 @@ The proxy acts as a unified gateway to all your MCP capabilities while providing
     }
 
     const promptsApiUrl = `${baseUrl}/api/prompts`;
-    const customInstructionsApiUrl = `${baseUrl}/api/custom-instructions`; // This endpoint should return full instruction data
 
-    // Fetch both standard prompts and custom instructions concurrently
-    const [promptsResponse, customInstructionsResponse] = await Promise.all([
-      axios.get<z.infer<typeof ListPromptsResultSchema>["prompts"]>(promptsApiUrl, {
-        headers: { Authorization: `Bearer ${apiKey}` },
-        timeout: 10000,
-      }),
-      // API should return: [{ name: string, description: string, instruction: string (JSON), _serverUuid: string }]
-      axios.get<z.infer<typeof ListPromptsResultSchema>["prompts"]>(customInstructionsApiUrl, {
-        headers: { Authorization: `Bearer ${apiKey}` },
-        timeout: 10000,
-      })
-    ]);
-
-    const standardPrompts = promptsResponse.data || [];
-    const customInstructionsAsPrompts = customInstructionsResponse.data || [];
-
-    // Clear previous instruction mapping and populate with new data
-    Object.keys(instructionToServerMap).forEach(key => delete instructionToServerMap[key]); // Clear map
-    
-    // Store the full instruction data from API
-    // The API should return objects with: name, description, instruction (JSON content), _serverUuid
-    // Names can be either old format (pluggedin_instruction_*) or new format (*__system_context)
-    customInstructionsAsPrompts.forEach(instr => {
-      if (instr.name) {
-        // Store the entire instruction object for later retrieval
-        instructionToServerMap[instr.name] = instr;
-      } else {
-          debugError(`[ListPrompts Handler] Missing name for custom instruction:`, instr);
-      }
+    // Only fetch standard prompts - custom instructions are now auto-injected via tool metadata
+    const promptsResponse = await axios.get<z.infer<typeof ListPromptsResultSchema>["prompts"]>(promptsApiUrl, {
+      headers: { Authorization: `Bearer ${apiKey}` },
+      timeout: 10000,
     });
 
-    // Merge the results (Remove internal _serverUuid from custom instructions before sending to client)
+    const standardPrompts = promptsResponse.data || [];
+
+    // Only return standard prompts and static proxy capabilities
+    // Custom instructions are now auto-injected via tool metadata
     const allPrompts = [
         proxyCapabilitiesStaticPrompt, // Add static proxy capabilities prompt
-        ...standardPrompts,
-        ...customInstructionsAsPrompts.map(({ _serverUuid, ...rest }) => rest)
+        ...standardPrompts
     ];
 
     // Wrap the combined array in the expected structure for the MCP response

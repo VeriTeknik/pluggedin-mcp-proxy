@@ -25,6 +25,11 @@ import {
 import { getMcpServers } from "../fetch-pluggedinmcp.js";
 import { getSession, initSessions } from "../sessions.js";
 import { getSessionKey } from "../utils.js";
+import { 
+  buildServerContextsMap, 
+  extractCustomInstructions,
+  ServerContext 
+} from '../utils/custom-instructions.js';
 import {
   setupStaticTool,
   discoverToolsStaticTool,
@@ -56,10 +61,20 @@ interface InstructionData {
  * These tools provide core functionality like discovery, RAG queries, notifications, and document management.
  */
 export class StaticToolHandlers {
+  private serverContexts: Record<string, ServerContext> = {};
+  
   constructor(
     private toolToServerMap: ToolToServerMap,
     private instructionToServerMap: Record<string, InstructionData>
   ) {}
+
+  getServerContext(serverName: string): ServerContext | undefined {
+    return this.serverContexts[serverName];
+  }
+
+  getServerContextByUuid(serverUuid: string): ServerContext | undefined {
+    return Object.values(this.serverContexts).find(ctx => ctx.serverId === serverUuid);
+  }
 
   async handleSetup(args: any): Promise<ToolExecutionResult> {
     const topic = args?.topic || 'getting_started';
@@ -247,6 +262,13 @@ Set environment variables in your terminal before launching the editor.
       }
 
       let dataContent = '# Available MCP Servers\n\n';
+      
+      // Build server contexts from custom instructions
+      const serverContexts = buildServerContextsMap(data);
+      
+      // Store server contexts for use in tool invocations
+      this.serverContexts = serverContexts;
+      
       data.forEach((server: any) => {
         dataContent += `## ${server.name} (${server.uuid})\n`;
         
@@ -261,14 +283,16 @@ Set environment variables in your terminal before launching the editor.
           dataContent += '\n';
         }
 
-        // Process and register custom instructions
+        // Show custom instructions as context, not as prompts
         if (server.customInstructions?.length > 0) {
-          dataContent += `### Instructions (${server.customInstructions.length}):\n`;
-          server.customInstructions.forEach((instruction: any) => {
-            const name = instruction.name || `instruction_${Math.random().toString(36).substring(7)}`;
-            this.instructionToServerMap[name] = server.uuid;
-            dataContent += `- **${name}**: ${instruction.instruction}\n`;
-          });
+          dataContent += `### Custom Context:\n`;
+          const context = serverContexts[server.name];
+          if (context) {
+            dataContent += `${context.instructions}\n`;
+            if (context.constraints && context.constraints.length > 0) {
+              dataContent += `Constraints: ${context.constraints.join(', ')}\n`;
+            }
+          }
           dataContent += '\n';
         }
       });
@@ -298,8 +322,24 @@ Set environment variables in your terminal before launching the editor.
         executionTime: timer.stop(),
       }).catch(() => {}); // Ignore notification errors
 
+      // Add server contexts to the discovery information
+      if (Object.keys(serverContexts).length > 0) {
+        dataContent += '\n## Server Contexts (Auto-Injected)\n';
+        dataContent += 'The following custom instructions are automatically provided to AI assistants:\n\n';
+        Object.entries(serverContexts).forEach(([serverName, context]) => {
+          dataContent += `### ${serverName}\n`;
+          dataContent += `${context.instructions}\n`;
+        });
+      }
+
       return {
-        content: [{ type: "text", text: dataContent }],
+        content: [{ 
+          type: "text", 
+          text: dataContent,
+          metadata: {
+            serverContexts: serverContexts
+          }
+        }],
         isError: false,
       };
     } catch (toolError: any) {
