@@ -6,13 +6,13 @@ export const DiscoverToolsInputSchema = z.object({
   force_refresh: z.boolean().optional().default(false).describe("Set to true to bypass cache and force a fresh discovery. Defaults to false."),
 }).describe("Triggers tool discovery for configured MCP servers in the Pluggedin App.");
 
-// Define the static RAG query tool schema using Zod
-export const RagQueryInputSchema = z.object({
+// Define the schema for asking questions to the knowledge base
+export const AskKnowledgeBaseInputSchema = z.object({
   query: z.string()
     .min(1, "Query cannot be empty")
     .max(1000, "Query too long")
-    .describe("The RAG query to perform."),
-}).describe("Performs a RAG query against documents in the authenticated user's project.");
+    .describe("Your question or query to get AI-generated answers from the knowledge base."),
+}).describe("Ask questions and get AI-generated answers from your knowledge base.");
 
 // Input schema for send notification validation
 export const SendNotificationInputSchema = z.object({

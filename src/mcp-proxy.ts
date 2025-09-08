@@ -142,19 +142,19 @@ const discoverToolsStaticTool: Tool = {
     inputSchema: zodToJsonSchema(DiscoverToolsInputSchema) as any,
 };
 
-// Define the static RAG query tool schema using Zod
-const RagQueryInputSchema = z.object({
+// Define the schema for asking questions to the knowledge base
+const AskKnowledgeBaseInputSchema = z.object({
   query: z.string()
     .min(1, "Query cannot be empty")
     .max(1000, "Query too long")
-    .describe("The RAG query to perform."),
-}).describe("Performs a RAG query against documents in the authenticated user's project.");
+    .describe("Your question or query to get AI-generated answers from the knowledge base."),
+}).describe("Ask questions and get AI-generated answers from your knowledge base.");
 
-// Define the static RAG query tool structure
-const ragQueryStaticTool: Tool = {
-    name: "pluggedin_rag_query",
-    description: "Performs a RAG query against documents in the Pluggedin App.",
-    inputSchema: zodToJsonSchema(RagQueryInputSchema) as any,
+// Define the static tool for asking questions to the knowledge base
+const askKnowledgeBaseStaticTool: Tool = {
+    name: "pluggedin_ask_knowledge_base",
+    description: "Ask questions and get AI-generated answers from your knowledge base. Returns synthesized responses based on all your documents.",
+    inputSchema: zodToJsonSchema(AskKnowledgeBaseInputSchema) as any,
 };
 
 // Define the static tool for sending custom notifications
@@ -305,7 +305,7 @@ export const createServer = async () => {
        return { 
          tools: [
            discoverToolsStaticTool, 
-           ragQueryStaticTool, 
+           askKnowledgeBaseStaticTool, 
            sendNotificationStaticTool,
            listNotificationsStaticTool,
            markNotificationDoneStaticTool,
@@ -382,7 +382,7 @@ export const createServer = async () => {
        // Always include the static tools
        const allToolsForClient = [
          discoverToolsStaticTool, 
-         ragQueryStaticTool,
+         askKnowledgeBaseStaticTool,
          createDocumentStaticTool,
          listDocumentsStaticTool,
          searchDocumentsStaticTool,
@@ -481,7 +481,7 @@ export const createServer = async () => {
                         // Add static built-in tools section (always available)
                         dataContent += `## 🔧 Static Built-in Tools (Always Available):\n`;
                         dataContent += `1. **pluggedin_discover_tools** - Triggers discovery of tools (and resources/templates) for configured MCP servers in the Pluggedin App\n`;
-                        dataContent += `2. **pluggedin_rag_query** - Performs a RAG query against documents in the Pluggedin App\n`;
+                        dataContent += `2. **pluggedin_ask_knowledge_base** - Performs a RAG query against documents in the Pluggedin App\n`;
                         dataContent += `3. **pluggedin_send_notification** - Send custom notifications through the Plugged.in system with optional email delivery\n`;
                         dataContent += `\n`;
                         
@@ -575,7 +575,7 @@ export const createServer = async () => {
                     let staticContent = cacheErrorMessage;
                     staticContent += `## 🔧 Static Built-in Tools (Always Available):\n`;
                     staticContent += `1. **pluggedin_discover_tools** - Triggers discovery of tools (and resources/templates) for configured MCP servers in the Pluggedin App\n`;
-                    staticContent += `2. **pluggedin_rag_query** - Performs a RAG query against documents in the Pluggedin App\n`;
+                    staticContent += `2. **pluggedin_ask_knowledge_base** - Performs a RAG query against documents in the Pluggedin App\n`;
                     staticContent += `3. **pluggedin_send_notification** - Send custom notifications through the Plugged.in system with optional email delivery\n`;
                     staticContent += `\n## ⚡ Dynamic MCP Tools - From Connected Servers:\n`;
                     staticContent += `Cache check failed. Running discovery to find dynamic tools...\n\n`;
@@ -658,7 +658,7 @@ export const createServer = async () => {
                             // Add static built-in tools section (always available)
                             forceRefreshContent += `## 🔧 Static Built-in Tools (Always Available):\n`;
                             forceRefreshContent += `1. **pluggedin_discover_tools** - Triggers discovery of tools (and resources/templates) for configured MCP servers in the Pluggedin App\n`;
-                            forceRefreshContent += `2. **pluggedin_rag_query** - Performs a RAG query against documents in the Pluggedin App\n`;
+                            forceRefreshContent += `2. **pluggedin_ask_knowledge_base** - Performs a RAG query against documents in the Pluggedin App\n`;
                             forceRefreshContent += `3. **pluggedin_send_notification** - Send custom notifications through the Plugged.in system with optional email delivery\n`;
                             forceRefreshContent += `\n`;
                             
@@ -734,7 +734,7 @@ export const createServer = async () => {
                                 
                             forceRefreshContent += `## 🔧 Static Built-in Tools (Always Available):\n`;
                             forceRefreshContent += `1. **pluggedin_discover_tools** - Triggers discovery of tools (and resources/templates) for configured MCP servers in the Pluggedin App\n`;
-                            forceRefreshContent += `2. **pluggedin_rag_query** - Performs a RAG query against documents in the Pluggedin App\n`;
+                            forceRefreshContent += `2. **pluggedin_ask_knowledge_base** - Performs a RAG query against documents in the Pluggedin App\n`;
                             forceRefreshContent += `3. **pluggedin_send_notification** - Send custom notifications through the Plugged.in system with optional email delivery\n`;
                             forceRefreshContent += `\n📝 **Note**: Fresh discovery is running in background. Call pluggedin_discover_tools() again in 10-30 seconds to see updated results.`;
                         }
@@ -820,8 +820,8 @@ export const createServer = async () => {
         }
 
         // Handle static RAG query tool
-        if (requestedToolName === ragQueryStaticTool.name) {
-            const validatedArgs = RagQueryInputSchema.parse(args ?? {}); // Validate args
+        if (requestedToolName === askKnowledgeBaseStaticTool.name) {
+            const validatedArgs = AskKnowledgeBaseInputSchema.parse(args ?? {}); // Validate args
 
             const apiKey = getPluggedinMCPApiKey();
             const baseUrl = getPluggedinMCPApiBaseUrl();
@@ -1341,7 +1341,7 @@ The Plugged.in MCP Proxy is a powerful gateway that provides access to multiple 
   - \`force_refresh\` (optional): Set to true to trigger background discovery and return immediately (defaults to false)
 - **Usage**: Returns cached data instantly if available. Use \`force_refresh=true\` to update data in background, then call again without force_refresh to see results.
 
-### 2. **pluggedin_rag_query**
+### 2. **pluggedin_ask_knowledge_base**
 - **Purpose**: Perform RAG (Retrieval-Augmented Generation) queries against your documents
 - **Parameters**:
   - \`query\` (required): The search query (1-1000 characters)
@@ -1397,7 +1397,7 @@ The Plugged.in MCP Proxy is a powerful gateway that provides access to multiple 
 1. **Configure Environment**: Set \`PLUGGEDIN_API_KEY\` and \`PLUGGEDIN_API_BASE_URL\`
 2. **Discover Tools**: Run \`pluggedin_discover_tools\` to see available tools from your servers
 3. **Use Tools**: Call any discovered tool through the proxy
-4. **Query Documents**: Use \`pluggedin_rag_query\` to search your knowledge base
+4. **Query Documents**: Use \`pluggedin_ask_knowledge_base\` to search your knowledge base
 5. **Manage Notifications**: Use notification tools to send, list, mark as read, and delete notifications
 
 ## 📊 Monitoring

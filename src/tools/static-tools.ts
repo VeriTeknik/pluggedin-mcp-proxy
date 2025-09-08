@@ -2,7 +2,7 @@ import { Tool } from "@modelcontextprotocol/sdk/types.js";
 import { zodToJsonSchema } from 'zod-to-json-schema';
 import {
   DiscoverToolsInputSchema,
-  RagQueryInputSchema,
+  AskKnowledgeBaseInputSchema,
   SendNotificationInputSchema,
   ListNotificationsInputSchema,
   MarkNotificationDoneInputSchema,
@@ -38,11 +38,11 @@ export const discoverToolsStaticTool: Tool = {
   inputSchema: zodToJsonSchema(DiscoverToolsInputSchema) as any,
 };
 
-// Define the static RAG query tool structure
-export const ragQueryStaticTool: Tool = {
-  name: "pluggedin_rag_query",
-  description: "Performs a RAG query against documents in the Pluggedin App (requires API key).",
-  inputSchema: zodToJsonSchema(RagQueryInputSchema) as any,
+// Define the static tool for asking questions to the knowledge base
+export const askKnowledgeBaseStaticTool: Tool = {
+  name: "pluggedin_ask_knowledge_base",
+  description: "Ask questions and get AI-generated answers from your knowledge base. Returns synthesized responses based on all your documents. For finding specific documents, use pluggedin_search_documents instead.",
+  inputSchema: zodToJsonSchema(AskKnowledgeBaseInputSchema) as any,
 };
 
 // Define the static tool for sending custom notifications
@@ -291,7 +291,7 @@ export const listDocumentsStaticTool: Tool = {
 // Define the static tool for searching documents
 export const searchDocumentsStaticTool: Tool = {
   name: "pluggedin_search_documents",
-  description: "Search documents semantically using RAG capabilities (requires API key)",
+  description: "Search for specific documents in your library. Returns document metadata (ID, title, snippet). To retrieve full content, use pluggedin_get_document with the returned document ID.",
   inputSchema: {
     type: "object",
     properties: {
@@ -339,8 +339,8 @@ export const searchDocumentsStaticTool: Tool = {
         type: "integer",
         minimum: 1,
         maximum: 50,
-        description: "Maximum number of results",
-        default: 10
+        default: 10,
+        description: "Maximum number of results (default: 10, max: 50)"
       }
     },
     required: ["query"]
@@ -350,7 +350,7 @@ export const searchDocumentsStaticTool: Tool = {
 // Define the static tool for getting a document
 export const getDocumentStaticTool: Tool = {
   name: "pluggedin_get_document",
-  description: "Retrieve a specific document by ID from the user's library (requires API key)",
+  description: "Retrieve a specific document's full content by ID. Use this after pluggedin_search_documents to get the complete content of documents you found. Set includeContent=true to get the full text.",
   inputSchema: {
     type: "object",
     properties: {
@@ -434,7 +434,7 @@ export const updateDocumentStaticTool: Tool = {
 export const staticTools: Tool[] = [
   setupStaticTool,
   discoverToolsStaticTool,
-  ragQueryStaticTool,
+  askKnowledgeBaseStaticTool,
   sendNotificationStaticTool,
   listNotificationsStaticTool,
   markNotificationDoneStaticTool,
