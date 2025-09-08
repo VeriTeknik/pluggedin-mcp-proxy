@@ -28,7 +28,12 @@ import { getSessionKey } from "../utils.js";
 import { 
   buildServerContextsMap, 
   extractCustomInstructions,
-  ServerContext 
+  ProcessedServerContext,
+  ServerContext,
+  toLegacyServerContext,
+  formatServerInstructionsForDiscovery,
+  Constraints,
+  buildConstraintMap
 } from '../utils/custom-instructions.js';
 import {
   setupStaticTool,
@@ -61,7 +66,8 @@ interface InstructionData {
  * These tools provide core functionality like discovery, RAG queries, notifications, and document management.
  */
 export class StaticToolHandlers {
-  private serverContexts: Record<string, ServerContext> = {};
+  private serverContexts: Map<string, ProcessedServerContext> = new Map();
+  private constraintMap: Map<string, Constraints> = new Map();
   
   constructor(
     private toolToServerMap: ToolToServerMap,
@@ -69,11 +75,22 @@ export class StaticToolHandlers {
   ) {}
 
   getServerContext(serverName: string): ServerContext | undefined {
-    return this.serverContexts[serverName];
+    // Find by server name (backwards compatibility)
+    for (const context of this.serverContexts.values()) {
+      if (context.serverName === serverName) {
+        return toLegacyServerContext(context);
+      }
+    }
+    return undefined;
   }
 
-  getServerContextByUuid(serverUuid: string): ServerContext | undefined {
-    return Object.values(this.serverContexts).find(ctx => ctx.serverId === serverUuid);
+  getServerContextByUuid(serverUuid: string): ProcessedServerContext | undefined {
+    // Direct UUID lookup - O(1) instead of O(n)
+    return this.serverContexts.get(serverUuid);
+  }
+
+  getConstraints(serverUuid: string): Constraints | undefined {
+    return this.constraintMap.get(serverUuid);
   }
 
   async handleSetup(args: any): Promise<ToolExecutionResult> {
@@ -263,11 +280,14 @@ Set environment variables in your terminal before launching the editor.
 
       let dataContent = '# Available MCP Servers\n\n';
       
-      // Build server contexts from custom instructions
+      // Build server contexts from custom instructions (UUID-keyed map)
       const serverContexts = buildServerContextsMap(data);
       
       // Store server contexts for use in tool invocations
       this.serverContexts = serverContexts;
+      
+      // Build constraint map for efficient validation
+      this.constraintMap = buildConstraintMap(serverContexts);
       
       data.forEach((server: any) => {
         dataContent += `## ${server.name} (${server.uuid})\n`;
@@ -285,15 +305,16 @@ Set environment variables in your terminal before launching the editor.
 
         // Show custom instructions as context, not as prompts
         if (server.customInstructions?.length > 0) {
-          dataContent += `### Custom Context:\n`;
-          const context = serverContexts[server.name];
+          const context = serverContexts.get(server.uuid);
           if (context) {
-            dataContent += `${context.instructions}\n`;
-            if (context.constraints && context.constraints.length > 0) {
-              dataContent += `Constraints: ${context.constraints.join(', ')}\n`;
-            }
+            dataContent += `### Custom Context:\n`;
+            // Just show the formatted context which already includes constraints
+            const lines = context.formattedContext.split('\n');
+            // Skip the header line if it's redundant
+            const startIdx = lines[0].startsWith('### Server Context:') ? 1 : 0;
+            dataContent += lines.slice(startIdx).join('\n');
+            dataContent += '\n';
           }
-          dataContent += '\n';
         }
       });
 
@@ -323,13 +344,10 @@ Set environment variables in your terminal before launching the editor.
       }).catch(() => {}); // Ignore notification errors
 
       // Add server contexts to the discovery information
-      if (Object.keys(serverContexts).length > 0) {
+      if (serverContexts.size > 0) {
         dataContent += '\n## Server Contexts (Auto-Injected)\n';
         dataContent += 'The following custom instructions are automatically provided to AI assistants:\n\n';
-        Object.entries(serverContexts).forEach(([serverName, context]) => {
-          dataContent += `### ${serverName}\n`;
-          dataContent += `${context.instructions}\n`;
-        });
+        dataContent += formatServerInstructionsForDiscovery(serverContexts);
       }
 
       return {

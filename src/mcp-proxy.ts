@@ -377,38 +377,28 @@ export const createServer = async () => {
        // Fetch server configurations with custom instructions
        const serverParams = await getMcpServers(false);
        
-       // Build a map of server UUID to custom instructions
-       const serverInstructions: Record<string, string> = {};
-       Object.values(serverParams).forEach((server: any) => {
-         if (server.uuid && server.customInstructions) {
-           // Convert custom instructions to a readable format
-           const instructions = Array.isArray(server.customInstructions) 
-             ? server.customInstructions.map((msg: any) => {
-                 const content = typeof msg.content === 'string' 
-                   ? msg.content 
-                   : msg.content?.map((c: any) => c.text).join(' ') || '';
-                 return content;
-               }).join(' ')
-             : '';
-           if (instructions) {
-             serverInstructions[server.uuid] = instructions;
-           }
-         }
-       });
+       // Build server contexts with parsed constraints
+       const { buildServerContextsMap } = await import('./utils/custom-instructions.js');
+       const serverContexts = buildServerContextsMap(Object.values(serverParams));
        
-       // Prepare the response payload with custom instructions in metadata
+       // Prepare the response payload with custom instructions and constraints in metadata
        const toolsForClient: Tool[] = fetchedTools.map(({ _serverUuid, _serverName, ...rest }) => {
-         // Add custom instructions to tool metadata if available
-         if (_serverUuid && serverInstructions[_serverUuid]) {
-           const toolWithMetadata: any = {
-             ...rest,
-             metadata: {
-               ...(rest.metadata || {}),
-               server: _serverName || _serverUuid,
-               instructions: serverInstructions[_serverUuid]
-             }
-           };
-           return toolWithMetadata;
+         // Add custom instructions and constraints to tool metadata if available
+         if (_serverUuid) {
+           const context = serverContexts.get(_serverUuid);
+           if (context) {
+             const toolWithMetadata: any = {
+               ...rest,
+               metadata: {
+                 ...(rest.metadata || {}),
+                 server: _serverName || _serverUuid,
+                 instructions: context.rawInstructions,
+                 constraints: context.constraints,
+                 formattedContext: context.formattedContext
+               }
+             };
+             return toolWithMetadata;
+           }
          }
          // Remove internal fields
          return rest;
@@ -1288,20 +1278,26 @@ export const createServer = async () => {
         // Get server context from static handlers if available
         let serverContext: any = undefined;
         if (staticHandlers) {
-            const context = staticHandlers.getServerContextByUuid(serverUuid);
-            if (context) {
+            // Use constraint map for efficient validation
+            const constraints = staticHandlers.getConstraints(serverUuid);
+            if (constraints) {
                 // Check if the tool violates any constraints
-                const { validateAgainstConstraints } = await import('./utils/custom-instructions.js');
-                const validation = validateAgainstConstraints(originalName, context.constraints || []);
+                const { validateToolAgainstConstraints } = await import('./utils/custom-instructions.js');
+                const constraintMap = new Map([[serverUuid, constraints]]);
+                const validation = validateToolAgainstConstraints(originalName, serverUuid, constraintMap);
                 if (!validation.valid) {
                     throw new Error(validation.reason || 'Tool execution blocked by server constraints');
                 }
-                
+            }
+            
+            // Get the full context for metadata
+            const context = staticHandlers.getServerContextByUuid(serverUuid);
+            if (context) {
                 // Add context to metadata for the downstream server
                 serverContext = {
-                    instructions: context.instructions,
-                    constraints: context.constraints,
-                    isReadOnly: context.isReadOnly
+                    instructions: context.formattedContext,
+                    constraints: Object.keys(context.constraints).length > 0 ? context.constraints : undefined,
+                    isReadOnly: context.constraints.readonly
                 };
             }
         }
