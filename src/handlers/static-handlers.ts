@@ -11,7 +11,7 @@ import { debugLog, debugError } from "../debug-log.js";
 import { getApiKeySetupMessage } from "./static-handlers-helpers.js";
 import {
   DiscoverToolsInputSchema,
-  RagQueryInputSchema,
+  AskKnowledgeBaseInputSchema,
   SendNotificationInputSchema,
   ListNotificationsInputSchema,
   MarkNotificationDoneInputSchema,
@@ -33,7 +33,7 @@ import {
 import {
   setupStaticTool,
   discoverToolsStaticTool,
-  ragQueryStaticTool,
+  askKnowledgeBaseStaticTool,
   sendNotificationStaticTool,
   listNotificationsStaticTool,
   markNotificationDoneStaticTool,
@@ -160,7 +160,7 @@ docker run -e PLUGGEDIN_API_KEY="your_key" pluggedin-mcp
 
 ## Testing Configuration
 - \`pluggedin_discover_tools\` - Lists connected servers
-- \`pluggedin_rag_query\` - Tests RAG functionality
+- \`pluggedin_ask_knowledge_base\` - Tests RAG functionality
 - \`pluggedin_list_documents\` - Tests document access`;
         break;
         
@@ -300,7 +300,7 @@ Set environment variables in your terminal before launching the editor.
       if (isDebugEnabled()) {
         dataContent += '\n## Static Tools\n';
         dataContent += '1. **pluggedin_discover_tools** - Triggers discovery of tools for configured MCP servers\n';
-        dataContent += '2. **pluggedin_rag_query** - Performs a RAG query against documents\n';
+        dataContent += '2. **pluggedin_ask_knowledge_base** - Performs a RAG query against documents\n';
         dataContent += '3. **pluggedin_send_notification** - Send custom notifications\n';
         dataContent += '4. **pluggedin_list_notifications** - List notifications with filters\n';
         dataContent += '5. **pluggedin_mark_notification_done** - Mark a notification as done\n';
@@ -358,9 +358,9 @@ Set environment variables in your terminal before launching the editor.
     }
   }
 
-  async handleRagQuery(args: any): Promise<ToolExecutionResult> {
-    debugError(`[CallTool Handler] Executing static tool: ${ragQueryStaticTool.name}`);
-    const validatedArgs = RagQueryInputSchema.parse(args ?? {});
+  async handleAskKnowledgeBase(args: any): Promise<ToolExecutionResult> {
+    debugError(`[CallTool Handler] Executing static tool: ${askKnowledgeBaseStaticTool.name}`);
+    const validatedArgs = AskKnowledgeBaseInputSchema.parse(args ?? {});
 
     const apiKey = getPluggedinMCPApiKey();
     const baseUrl = getPluggedinMCPApiBaseUrl();
@@ -368,13 +368,13 @@ Set environment variables in your terminal before launching the editor.
       return {
         content: [{
           type: "text",
-          text: getApiKeySetupMessage("pluggedin_rag_query")
+          text: getApiKeySetupMessage("pluggedin_ask_knowledge_base")
         }],
         isError: false
       };
     }
 
-    const ragApiUrl = `${baseUrl}/api/rag-query`;
+    const ragApiUrl = `${baseUrl}/api/rag/query`;
 
     const timer = createExecutionTimer();
     try {
@@ -394,12 +394,13 @@ Set environment variables in your terminal before launching the editor.
         action: 'tool_call',
         serverName: 'Pluggedin RAG',
         serverUuid: 'pluggedin_rag',
-        itemName: ragQueryStaticTool.name,
+        itemName: askKnowledgeBaseStaticTool.name,
         success: true,
         executionTime: timer.stop(),
       }).catch(() => {}); // Ignore notification errors
 
-      const ragResponse = response.data.response || "No response received from RAG service.";
+      // The API returns plain text, so response.data is the text itself
+      const ragResponse = response.data || "No response received from RAG service.";
       return {
         content: [{ type: "text", text: ragResponse }],
         isError: false,
@@ -411,7 +412,7 @@ Set environment variables in your terminal before launching the editor.
         action: 'tool_call',
         serverName: 'Pluggedin RAG',
         serverUuid: 'pluggedin_rag',
-        itemName: ragQueryStaticTool.name,
+        itemName: askKnowledgeBaseStaticTool.name,
         success: false,
         errorMessage: apiError instanceof Error ? apiError.message : String(apiError),
         executionTime: timer.stop(),
@@ -1172,8 +1173,8 @@ Set environment variables in your terminal before launching the editor.
         return this.handleSetup(args);
       case discoverToolsStaticTool.name:
         return this.handleDiscoverTools(args);
-      case ragQueryStaticTool.name:
-        return this.handleRagQuery(args);
+      case askKnowledgeBaseStaticTool.name:
+        return this.handleAskKnowledgeBase(args);
       case sendNotificationStaticTool.name:
         return this.handleSendNotification(args);
       case listNotificationsStaticTool.name:
