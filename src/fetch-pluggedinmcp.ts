@@ -52,9 +52,6 @@ export async function getMcpServers(
       const params: ServerParameters = {
         ...serverParams,
         type: serverParams.type || "STDIO",
-        // Map streamableHTTPOptions to direct fields for backward compatibility
-        headers: serverParams.streamableHTTPOptions?.headers || serverParams.headers,
-        sessionId: serverParams.streamableHTTPOptions?.sessionId || serverParams.sessionId,
       };
 
       // Process based on server type
@@ -76,10 +73,20 @@ export async function getMcpServers(
           continue;
         }
       } else if (params.type === "STREAMABLE_HTTP") {
-        // For Streamable HTTP servers, log if headers or sessionId are present
-        if (params.headers || params.sessionId) {
-          debugLog(`[MCP] StreamableHTTP server ${params.name}: headers=${!!params.headers}, sessionId=${!!params.sessionId}`);
+        // Map streamableHTTPOptions to direct fields for backward compatibility
+        // Merge headers for backward compatibility, streamableHTTPOptions.headers takes precedence
+        params.headers = {
+          ...(params.headers || {}),
+          ...(params.streamableHTTPOptions?.headers || {}),
+        };
+        // For sessionId, streamableHTTPOptions.sessionId takes precedence if present
+        params.sessionId = params.streamableHTTPOptions?.sessionId || params.sessionId;
+        
+        // Log if headers or sessionId are present
+        if ((params.headers && Object.keys(params.headers).length > 0) || params.sessionId) {
+          debugLog(`[MCP] StreamableHTTP server ${params.name}: headers=${Object.keys(params.headers || {}).length}, sessionId=${!!params.sessionId}`);
         }
+        
         // Ensure url is present
         if (!params.url) {
           debugError(`StreamableHTTP server ${params.uuid} (${params.name}) is missing url field, skipping`);
