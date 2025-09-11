@@ -4,6 +4,7 @@ import {
   getPluggedinMCPApiBaseUrl,
   getPluggedinMCPApiKey,
 } from "./utils.js";
+import { debugLog, debugError } from "./debug-log.js";
 // import { logger } from "./logging.js"; // No longer needed, get from container
 // import { container } from "./di-container.js"; // Removed DI container
 // import { Logger } from "./logging.js"; // Removed Logger type
@@ -51,6 +52,9 @@ export async function getMcpServers(
       const params: ServerParameters = {
         ...serverParams,
         type: serverParams.type || "STDIO",
+        // Map streamableHTTPOptions to direct fields for backward compatibility
+        headers: serverParams.streamableHTTPOptions?.headers || serverParams.headers,
+        sessionId: serverParams.streamableHTTPOptions?.sessionId || serverParams.sessionId,
       };
 
       // Process based on server type
@@ -69,6 +73,16 @@ export async function getMcpServers(
           // logger.warn( // Removed logging
           //   `SSE server ${params.uuid} (${params.name}) is missing url field, skipping`
           // );
+          continue;
+        }
+      } else if (params.type === "STREAMABLE_HTTP") {
+        // For Streamable HTTP servers, log if headers or sessionId are present
+        if (params.headers || params.sessionId) {
+          debugLog(`[MCP] StreamableHTTP server ${params.name}: headers=${!!params.headers}, sessionId=${!!params.sessionId}`);
+        }
+        // Ensure url is present
+        if (!params.url) {
+          debugError(`StreamableHTTP server ${params.uuid} (${params.name}) is missing url field, skipping`);
           continue;
         }
       }

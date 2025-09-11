@@ -30,6 +30,11 @@ export interface ServerParameters {
   // Custom instructions from API
   customInstructions?: string;
   customInstructionsDescription?: string;
+  // StreamableHTTP options (from pluggedin-app encrypted storage)
+  streamableHTTPOptions?: {
+    headers?: Record<string, string>;
+    sessionId?: string;
+  };
   // Add other relevant fields fetched from the API if needed
 }
 
