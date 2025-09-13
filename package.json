@@ -32,7 +32,7 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.16.0",
     "@types/uuid": "^10.0.0",
-    "axios": "^1.11.0",
+    "axios": "^1.12.0",
     "commander": "^14.0.0",
     "express": "^5.1.0",
     "quick-lru": "^7.1.0",
