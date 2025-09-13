@@ -4,6 +4,7 @@ import {
   getPluggedinMCPApiBaseUrl,
   getPluggedinMCPApiKey,
 } from "./utils.js";
+import { debugLog, debugError } from "./debug-log.js";
 // import { logger } from "./logging.js"; // No longer needed, get from container
 // import { container } from "./di-container.js"; // Removed DI container
 // import { Logger } from "./logging.js"; // Removed Logger type
@@ -69,6 +70,26 @@ export async function getMcpServers(
           // logger.warn( // Removed logging
           //   `SSE server ${params.uuid} (${params.name}) is missing url field, skipping`
           // );
+          continue;
+        }
+      } else if (params.type === "STREAMABLE_HTTP") {
+        // Map streamableHTTPOptions to direct fields for backward compatibility
+        // Merge headers for backward compatibility, streamableHTTPOptions.headers takes precedence
+        params.headers = {
+          ...(params.headers || {}),
+          ...(params.streamableHTTPOptions?.headers || {}),
+        };
+        // For sessionId, streamableHTTPOptions.sessionId takes precedence if present
+        params.sessionId = params.streamableHTTPOptions?.sessionId || params.sessionId;
+        
+        // Log if headers or sessionId are present
+        if ((params.headers && Object.keys(params.headers).length > 0) || params.sessionId) {
+          debugLog(`[MCP] StreamableHTTP server ${params.name}: headers=${Object.keys(params.headers || {}).length}, sessionId=${!!params.sessionId}`);
+        }
+        
+        // Ensure url is present
+        if (!params.url) {
+          debugError(`StreamableHTTP server ${params.uuid} (${params.name}) is missing url field, skipping`);
           continue;
         }
       }

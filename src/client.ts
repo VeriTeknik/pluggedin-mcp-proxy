@@ -8,7 +8,7 @@ import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/
 import { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import { ServerParameters } from "./types.js";
 import { createRequire } from 'module';
-import { debugError } from './debug-log.js';
+import { debugLog, debugError } from './debug-log.js';
 // import { container } from './di-container.js'; // Removed DI container
 // import { Logger } from './logging.js'; // Removed Logger type
 
@@ -106,11 +106,13 @@ export const createPluggedinMCPClient = (
       // Add headers if provided
       if (serverParams.headers) {
         transportOptions.requestInit.headers = serverParams.headers;
+        debugLog(`[MCP] StreamableHTTP transport: Adding ${Object.keys(serverParams.headers).length} custom headers for ${serverParams.name}`);
       }
       
       // Add session ID if provided
       if (serverParams.sessionId) {
         transportOptions.sessionId = serverParams.sessionId;
+        debugLog(`[MCP] StreamableHTTP transport: Using session ID for ${serverParams.name}`);
       }
       
       // Add OAuth configuration if provided
@@ -138,7 +140,7 @@ export const createPluggedinMCPClient = (
             debugError(`OAuth authorization required for ${serverParams.name}`);
             throw new Error("OAuth authorization required - please authorize through the UI");
           },
-          refresh: async (refreshToken: string) => {
+          refresh: async (_refreshToken: string) => {
             // Implement token refresh if supported by the provider
             debugError(`OAuth token refresh not implemented for ${serverParams.name}`);
             throw new Error("Token refresh not implemented");
