@@ -48,103 +48,46 @@ export const askKnowledgeBaseStaticTool: Tool = {
 // Define the static tool for sending custom notifications
 export const sendNotificationStaticTool: Tool = {
   name: "pluggedin_send_notification",
-  description: "Send custom notifications through the Plugged.in system with optional email delivery (requires API key).",
-  inputSchema: {
-    type: "object",
-    properties: {
-      title: {
-        type: "string",
-        description: "Optional notification title. If not provided, a localized default will be used. Consider generating a descriptive title based on the message content."
-      },
-      message: {
-        type: "string",
-        description: "The notification message content"
-      },
-      severity: {
-        type: "string",
-        enum: ["INFO", "SUCCESS", "WARNING", "ALERT"],
-        description: "The severity level of the notification (defaults to INFO)",
-        default: "INFO"
-      },
-      link: {
-        type: "string",
-        description: "Optional link for the notification"
-      },
-      email: {
-        type: "boolean",
-        description: "Whether to send an email notification (defaults to false)",
-        default: false
-      }
-    },
-    required: ["message"]
-  }
+  description: "Send custom notifications through the Plugged.in system with optional email delivery. You can provide a custom title or let the system use a localized default.",
+  inputSchema: zodToJsonSchema(SendNotificationInputSchema) as any,
 };
 
 // Define the static tool for listing notifications
 export const listNotificationsStaticTool: Tool = {
   name: "pluggedin_list_notifications",
-  description: "List notifications with filtering options (requires API key)",
-  inputSchema: {
-    type: "object",
-    properties: {
-      limit: {
-        type: "integer",
-        description: "Maximum number of notifications to return (1-100)",
-        minimum: 1,
-        maximum: 100,
-        default: 20
-      },
-      unreadOnly: {
-        type: "boolean",
-        description: "Only return unread notifications",
-        default: false
-      },
-      severity: {
-        type: "string",
-        enum: ["INFO", "SUCCESS", "WARNING", "ALERT"],
-        description: "Filter by severity level"
-      }
-    }
-  }
+  description: "List notifications from the Plugged.in system with optional filters for unread only and result limit",
+  inputSchema: zodToJsonSchema(ListNotificationsInputSchema) as any,
 };
 
 // Define the static tool for marking notifications as done
 export const markNotificationDoneStaticTool: Tool = {
   name: "pluggedin_mark_notification_done",
-  description: "Mark a notification as done (requires API key)",
-  inputSchema: {
-    type: "object",
-    properties: {
-      notificationId: {
-        type: "string",
-        description: "The ID of the notification to mark as done"
-      }
-    },
-    required: ["notificationId"]
-  }
+  description: "Mark a notification as done in the Plugged.in system",
+  inputSchema: zodToJsonSchema(MarkNotificationDoneInputSchema) as any,
 };
 
 // Define the static tool for deleting notifications
 export const deleteNotificationStaticTool: Tool = {
   name: "pluggedin_delete_notification",
-  description: "Delete a notification (requires API key)",
-  inputSchema: {
-    type: "object",
-    properties: {
-      notificationId: {
-        type: "string",
-        description: "The ID of the notification to delete"
-      }
-    },
-    required: ["notificationId"]
-  }
+  description: "Delete a notification from the Plugged.in system",
+  inputSchema: zodToJsonSchema(DeleteNotificationInputSchema) as any,
 };
 
 // Define the static tool for creating AI-generated documents
+const createDocumentSchema = zodToJsonSchema(CreateDocumentInputSchema) as any;
+// Add examples to help MCP Inspector display proper values
+if (createDocumentSchema.properties?.metadata?.properties?.model) {
+  createDocumentSchema.properties.metadata.properties.model.examples = [{
+    name: "claude-3-opus",
+    provider: "anthropic",
+    version: "20240229"
+  }];
+}
+
 export const createDocumentStaticTool: Tool = {
   name: "pluggedin_create_document",
   description: "Create and save AI-generated documents to the user's library in Plugged.in (requires API key)",
-  inputSchema: zodToJsonSchema(CreateDocumentInputSchema) as any,
+  inputSchema: createDocumentSchema,
 };
 
 // Define the static tool for listing documents
@@ -169,10 +112,20 @@ export const getDocumentStaticTool: Tool = {
 };
 
 // Define the static tool for updating a document
+const updateDocumentSchema = zodToJsonSchema(UpdateDocumentInputSchema) as any;
+// Add examples to help MCP Inspector display proper values
+if (updateDocumentSchema.properties?.metadata?.properties?.model) {
+  updateDocumentSchema.properties.metadata.properties.model.examples = [{
+    name: "claude-3-opus",
+    provider: "anthropic",
+    version: "20240229"
+  }];
+}
+
 export const updateDocumentStaticTool: Tool = {
   name: "pluggedin_update_document",
   description: "Update or append to an existing AI-generated document (requires API key)",
-  inputSchema: zodToJsonSchema(UpdateDocumentInputSchema) as any,
+  inputSchema: updateDocumentSchema,
 };
 
 // Export all static tools as an array for easy registration
