@@ -144,321 +144,35 @@ export const deleteNotificationStaticTool: Tool = {
 export const createDocumentStaticTool: Tool = {
   name: "pluggedin_create_document",
   description: "Create and save AI-generated documents to the user's library in Plugged.in (requires API key)",
-  inputSchema: {
-    type: "object",
-    properties: {
-      title: {
-        type: "string",
-        description: "Document title",
-        minLength: 1,
-        maxLength: 255
-      },
-      content: {
-        type: "string",
-        description: "Document content in markdown, text, json, or html format",
-        minLength: 1
-      },
-      format: {
-        type: "string",
-        enum: ["md", "txt", "json", "html"],
-        description: "Document format",
-        default: "md"
-      },
-      tags: {
-        type: "array",
-        items: { type: "string" },
-        description: "Tags for categorization",
-        maxItems: 20
-      },
-      category: {
-        type: "string",
-        enum: ["report", "analysis", "documentation", "guide", "research", "code", "other"],
-        description: "Document category",
-        default: "other"
-      },
-      metadata: {
-        type: "object",
-        properties: {
-          model: {
-            type: "object",
-            properties: {
-              name: {
-                type: "string",
-                description: "Model name"
-              },
-              provider: {
-                type: "string",
-                description: "Model provider"
-              },
-              version: {
-                type: "string",
-                description: "Model version"
-              }
-            },
-            required: ["name", "provider"]
-          },
-          context: {
-            type: "string",
-            description: "Optional context about the document creation"
-          },
-          visibility: {
-            type: "string",
-            enum: ["private", "workspace", "public"],
-            description: "Document visibility",
-            default: "private"
-          },
-          prompt: {
-            type: "string",
-            description: "The prompt that triggered document creation"
-          },
-          conversationContext: {
-            type: "array",
-            items: { type: "string" },
-            description: "Previous messages in the conversation"
-          },
-          sourceDocuments: {
-            type: "array",
-            items: { type: "string" },
-            description: "IDs of documents used as references"
-          },
-          generationParams: {
-            type: "object",
-            properties: {
-              temperature: { type: "number", description: "Temperature setting" },
-              maxTokens: { type: "number", description: "Maximum tokens" },
-              topP: { type: "number", description: "Top P setting" }
-            },
-            description: "Model generation parameters"
-          }
-        },
-        required: ["model"]
-      }
-    },
-    required: ["title", "content", "metadata"]
-  }
+  inputSchema: zodToJsonSchema(CreateDocumentInputSchema) as any,
 };
 
 // Define the static tool for listing documents
 export const listDocumentsStaticTool: Tool = {
   name: "pluggedin_list_documents",
   description: "List documents with filtering options from the user's library (requires API key)",
-  inputSchema: {
-    type: "object",
-    properties: {
-      filters: {
-        type: "object",
-        properties: {
-          source: {
-            type: "string",
-            enum: ["all", "upload", "ai_generated", "api"],
-            description: "Filter by document source",
-            default: "all"
-          },
-          modelName: {
-            type: "string",
-            description: "Filter by AI model name"
-          },
-          modelProvider: {
-            type: "string",
-            description: "Filter by AI model provider"
-          },
-          dateFrom: {
-            type: "string",
-            format: "date-time",
-            description: "Filter documents created after this date"
-          },
-          dateTo: {
-            type: "string",
-            format: "date-time",
-            description: "Filter documents created before this date"
-          },
-          tags: {
-            type: "array",
-            items: { type: "string" },
-            description: "Filter by tags"
-          },
-          category: {
-            type: "string",
-            enum: ["report", "analysis", "documentation", "guide", "research", "code", "other"],
-            description: "Filter by category"
-          },
-          searchQuery: {
-            type: "string",
-            description: "Search in document titles and descriptions"
-          }
-        }
-      },
-      sort: {
-        type: "string",
-        enum: ["date_desc", "date_asc", "title", "size"],
-        description: "Sort order",
-        default: "date_desc"
-      },
-      limit: {
-        type: "integer",
-        minimum: 1,
-        maximum: 100,
-        description: "Maximum number of documents to return",
-        default: 20
-      },
-      offset: {
-        type: "integer",
-        minimum: 0,
-        description: "Number of documents to skip",
-        default: 0
-      }
-    }
-  }
+  inputSchema: zodToJsonSchema(ListDocumentsInputSchema) as any,
 };
 
 // Define the static tool for searching documents
 export const searchDocumentsStaticTool: Tool = {
   name: "pluggedin_search_documents",
   description: "Search for specific documents in your library. Returns document metadata (ID, title, snippet). To retrieve full content, use pluggedin_get_document with the returned document ID.",
-  inputSchema: {
-    type: "object",
-    properties: {
-      query: {
-        type: "string",
-        description: "Search query",
-        minLength: 1,
-        maxLength: 500
-      },
-      filters: {
-        type: "object",
-        properties: {
-          modelName: {
-            type: "string",
-            description: "Filter by AI model name"
-          },
-          modelProvider: {
-            type: "string",
-            description: "Filter by AI model provider"
-          },
-          dateFrom: {
-            type: "string",
-            format: "date-time",
-            description: "Filter documents created after this date"
-          },
-          dateTo: {
-            type: "string",
-            format: "date-time",
-            description: "Filter documents created before this date"
-          },
-          tags: {
-            type: "array",
-            items: { type: "string" },
-            description: "Filter by tags"
-          },
-          source: {
-            type: "string",
-            enum: ["all", "upload", "ai_generated", "api"],
-            description: "Filter by document source",
-            default: "all"
-          }
-        }
-      },
-      limit: {
-        type: "integer",
-        minimum: 1,
-        maximum: 50,
-        default: 10,
-        description: "Maximum number of results (default: 10, max: 50)"
-      }
-    },
-    required: ["query"]
-  }
+  inputSchema: zodToJsonSchema(SearchDocumentsInputSchema) as any,
 };
 
 // Define the static tool for getting a document
 export const getDocumentStaticTool: Tool = {
   name: "pluggedin_get_document",
   description: "Retrieve a specific document's full content by ID. Use this after pluggedin_search_documents to get the complete content of documents you found. Set includeContent=true to get the full text.",
-  inputSchema: {
-    type: "object",
-    properties: {
-      documentId: {
-        type: "string",
-        description: "Document UUID"
-      },
-      includeContent: {
-        type: "boolean",
-        description: "Include the full document content",
-        default: false
-      },
-      includeVersions: {
-        type: "boolean",
-        description: "Include version history",
-        default: false
-      }
-    },
-    required: ["documentId"]
-  }
+  inputSchema: zodToJsonSchema(GetDocumentInputSchema) as any,
 };
 
 // Define the static tool for updating a document
 export const updateDocumentStaticTool: Tool = {
   name: "pluggedin_update_document",
   description: "Update or append to an existing AI-generated document (requires API key)",
-  inputSchema: {
-    type: "object",
-    properties: {
-      documentId: {
-        type: "string",
-        description: "Document UUID"
-      },
-      operation: {
-        type: "string",
-        enum: ["replace", "append", "prepend"],
-        description: "Update operation type"
-      },
-      content: {
-        type: "string",
-        description: "New content"
-      },
-      metadata: {
-        type: "object",
-        properties: {
-          tags: {
-            type: "array",
-            items: { type: "string" },
-            description: "Updated tags"
-          },
-          changeSummary: {
-            type: "string",
-            description: "Summary of changes"
-          },
-          updateReason: {
-            type: "string",
-            description: "Why this update was made"
-          },
-          changesFromPrompt: {
-            type: "string",
-            description: "The prompt that triggered this update"
-          },
-          model: {
-            type: "object",
-            properties: {
-              name: {
-                type: "string",
-                description: "Model name"
-              },
-              provider: {
-                type: "string",
-                description: "Model provider"
-              },
-              version: {
-                type: "string",
-                description: "Model version"
-              }
-            },
-            required: ["name", "provider"]
-          }
-        }
-      }
-    },
-    required: ["documentId", "operation", "content"]
-  }
+  inputSchema: zodToJsonSchema(UpdateDocumentInputSchema) as any,
 };
 
 // Export all static tools as an array for easy registration
