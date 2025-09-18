@@ -41,7 +41,7 @@ export const discoverToolsStaticTool: Tool = {
 // Define the static tool for asking questions to the knowledge base
 export const askKnowledgeBaseStaticTool: Tool = {
   name: "pluggedin_ask_knowledge_base",
-  description: "Ask questions and get AI-generated answers from your knowledge base. Returns synthesized responses based on all your documents. For finding specific documents, use pluggedin_search_documents instead.",
+  description: "Ask questions and get AI-generated answers from your knowledge base. Returns structured JSON with answer, document sources, and metadata. For finding specific documents, use pluggedin_search_documents instead.",
   inputSchema: zodToJsonSchema(AskKnowledgeBaseInputSchema) as any,
 };
 
@@ -206,6 +206,29 @@ export const createDocumentStaticTool: Tool = {
             enum: ["private", "workspace", "public"],
             description: "Document visibility",
             default: "private"
+          },
+          prompt: {
+            type: "string",
+            description: "The prompt that triggered document creation"
+          },
+          conversationContext: {
+            type: "array",
+            items: { type: "string" },
+            description: "Previous messages in the conversation"
+          },
+          sourceDocuments: {
+            type: "array",
+            items: { type: "string" },
+            description: "IDs of documents used as references"
+          },
+          generationParams: {
+            type: "object",
+            properties: {
+              temperature: { type: "number", description: "Temperature setting" },
+              maxTokens: { type: "number", description: "Maximum tokens" },
+              topP: { type: "number", description: "Top P setting" }
+            },
+            description: "Model generation parameters"
           }
         },
         required: ["model"]
@@ -404,6 +427,14 @@ export const updateDocumentStaticTool: Tool = {
           changeSummary: {
             type: "string",
             description: "Summary of changes"
+          },
+          updateReason: {
+            type: "string",
+            description: "Why this update was made"
+          },
+          changesFromPrompt: {
+            type: "string",
+            description: "The prompt that triggered this update"
           },
           model: {
             type: "object",

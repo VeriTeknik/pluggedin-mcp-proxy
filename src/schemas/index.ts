@@ -11,12 +11,8 @@ export const AskKnowledgeBaseInputSchema = z.object({
   query: z.string()
     .min(1, "Query cannot be empty")
     .max(1000, "Query too long")
-    .describe("Your question or query to get AI-generated answers from the knowledge base."),
-  includeMetadata: z.boolean()
-    .optional()
-    .default(true)
-    .describe("Include source documents and metadata in the response")
-}).describe("Ask questions and get AI-generated answers from your knowledge base.");
+    .describe("Your question or query to get AI-generated answers from the knowledge base.")
+}).describe("Ask questions and get AI-generated answers from your knowledge base. Returns JSON with answer, sources, and metadata.");
 
 // Input schema for send notification validation
 export const SendNotificationInputSchema = z.object({
@@ -59,6 +55,14 @@ export const CreateDocumentInputSchema = z.object({
     }),
     context: z.string().optional(),
     visibility: z.enum(["private", "workspace", "public"]).default("private"),
+    prompt: z.string().optional().describe("The prompt that triggered document creation"),
+    conversationContext: z.array(z.string()).optional().describe("Previous messages in the conversation"),
+    sourceDocuments: z.array(z.string()).optional().describe("IDs of documents used as references"),
+    generationParams: z.object({
+      temperature: z.number().optional(),
+      maxTokens: z.number().optional(),
+      topP: z.number().optional(),
+    }).optional(),
   }),
 });
 
@@ -108,6 +112,8 @@ export const UpdateDocumentInputSchema = z.object({
   metadata: z.object({
     tags: z.array(z.string()).optional(),
     changeSummary: z.string().optional(),
+    updateReason: z.string().optional().describe("Why this update was made"),
+    changesFromPrompt: z.string().optional().describe("The prompt that triggered this update"),
     model: z.object({
       name: z.string(),
       provider: z.string(),

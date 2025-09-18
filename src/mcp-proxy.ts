@@ -141,13 +141,13 @@ const AskKnowledgeBaseInputSchema = z.object({
   query: z.string()
     .min(1, "Query cannot be empty")
     .max(1000, "Query too long")
-    .describe("Your question or query to get AI-generated answers from the knowledge base."),
-}).describe("Ask questions and get AI-generated answers from your knowledge base.");
+    .describe("Your question or query to get AI-generated answers from the knowledge base.")
+}).describe("Ask questions and get AI-generated answers from your knowledge base. Returns JSON with answer, sources, and metadata.");
 
 // Define the static tool for asking questions to the knowledge base
 const askKnowledgeBaseStaticTool: Tool = {
     name: "pluggedin_ask_knowledge_base",
-    description: "Ask questions and get AI-generated answers from your knowledge base. Returns synthesized responses based on all your documents.",
+    description: "Ask questions and get AI-generated answers from your knowledge base. Returns structured JSON with answer, document sources, and metadata.",
     inputSchema: zodToJsonSchema(AskKnowledgeBaseInputSchema) as any,
 };
 
@@ -867,21 +867,67 @@ export const createServer = async () => {
             const timer = createExecutionTimer();
 
             try {
-                // Make POST request with RAG query (ragIdentifier removed for security)
+                // Make POST request with RAG query - always request metadata
                 const ragResponse = await axios.post(ragApiUrl, {
                     query: validatedArgs.query,
+                    includeMetadata: true // Always request metadata
                 }, {
-                    headers: { 
+                    headers: {
                         Authorization: `Bearer ${apiKey}`,
                         'Content-Type': 'application/json'
                     },
                     timeout: 15000, // Reduced timeout to prevent DoS
-                    responseType: 'text' // Expect text response, not JSON
                 });
 
-                // The API returns plain text response
-                const responseText = ragResponse.data || "No response generated";
-                
+                // Handle response - always return structured JSON
+                let responseContent: any;
+
+                if (typeof ragResponse.data === 'object' && ragResponse.data.answer) {
+                    const { answer, sources = [], documentIds = [], documentVersions = [], relevanceScores = [] } = ragResponse.data;
+
+                    // Build enhanced source objects if we have additional data
+                    let enhancedSources = [];
+                    if (sources.length > 0) {
+                        enhancedSources = sources.map((source: string, index: number) => ({
+                            name: source,
+                            id: documentIds[index] || null,
+                            version: documentVersions[index] || null,
+                            relevance: relevanceScores[index] || null
+                        }));
+                    } else if (documentIds.length > 0) {
+                        enhancedSources = documentIds.map((id: string, index: number) => ({
+                            id: id,
+                            version: documentVersions[index] || null,
+                            relevance: relevanceScores[index] || null
+                        }));
+                    }
+
+                    // Return structured JSON response
+                    const structuredResponse = {
+                        answer: answer || "No response received",
+                        sources: enhancedSources.length > 0 ? enhancedSources : sources.length > 0 ? sources : documentIds,
+                        metadata: {
+                            query: validatedArgs.query,
+                            sourceCount: sources.length || documentIds.length,
+                            timestamp: new Date().toISOString()
+                        }
+                    };
+
+                    responseContent = JSON.stringify(structuredResponse, null, 2);
+                } else {
+                    // Fallback for plain text responses from older API versions
+                    const structuredResponse = {
+                        answer: ragResponse.data || "No response generated",
+                        sources: [],
+                        metadata: {
+                            query: validatedArgs.query,
+                            sourceCount: 0,
+                            timestamp: new Date().toISOString()
+                        }
+                    };
+                    responseContent = JSON.stringify(structuredResponse, null, 2);
+                }
+
                 // Log successful RAG query
                 logMcpActivity({
                     action: 'tool_call',
@@ -891,9 +937,9 @@ export const createServer = async () => {
                     success: true,
                     executionTime: timer.stop(),
                 }).catch(() => {}); // Ignore notification errors
-                
+
                 return {
-                    content: [{ type: "text", text: responseText }],
+                    content: [{ type: "text", text: responseContent }],
                     isError: false,
                 } as ToolExecutionResult; // Cast to expected type
 

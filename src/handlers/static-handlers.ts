@@ -374,11 +374,14 @@ Set environment variables in your terminal before launching the editor.
   }
 
   async handleAskKnowledgeBase(args: any): Promise<ToolExecutionResult> {
+    console.error(`[DEBUG START] handleAskKnowledgeBase called with args:`, JSON.stringify(args));
     debugError(`[CallTool Handler] Executing static tool: ${askKnowledgeBaseStaticTool.name}`);
     const validatedArgs = AskKnowledgeBaseInputSchema.parse(args ?? {});
+    console.error(`[DEBUG] Validated args:`, JSON.stringify(validatedArgs));
 
     const apiKey = getPluggedinMCPApiKey();
     const baseUrl = getPluggedinMCPApiBaseUrl();
+    console.error(`[DEBUG] API Key exists:`, !!apiKey, `Base URL:`, baseUrl);
     if (!apiKey || !baseUrl) {
       return {
         content: [{
@@ -390,15 +393,19 @@ Set environment variables in your terminal before launching the editor.
     }
 
     const ragApiUrl = `${baseUrl}/api/rag/query`;
+    console.error(`[DEBUG] RAG API URL:`, ragApiUrl);
 
     const timer = createExecutionTimer();
     try {
+      const requestBody = {
+        query: validatedArgs.query,
+        includeMetadata: true // Always request metadata
+      };
+      console.error(`[DEBUG] Request body:`, JSON.stringify(requestBody));
+
       const response = await axios.post(
         ragApiUrl,
-        {
-          query: validatedArgs.query,
-          includeMetadata: validatedArgs.includeMetadata
-        },
+        requestBody,
         {
           headers: {
             'Authorization': `Bearer ${apiKey}`,
@@ -417,32 +424,58 @@ Set environment variables in your terminal before launching the editor.
         executionTime: timer.stop(),
       }).catch(() => {}); // Ignore notification errors
 
-      // Handle response based on whether metadata was requested
-      if (validatedArgs.includeMetadata && typeof response.data === 'object' && response.data.answer) {
-        const { answer, sources = [] } = response.data;
-        let responseText = answer || "No response received";
+      // Debug logging to see what we're getting back
+      console.error('[DEBUG] RAG Response:', JSON.stringify(response.data, null, 2));
 
-        // Append sources if available
+      // Always return structured JSON
+      if (typeof response.data === 'object' && response.data.answer) {
+        const { answer, sources = [], documentIds = [], documentVersions = [], relevanceScores = [] } = response.data;
+
+        // Build enhanced source objects if we have additional data
+        let enhancedSources = [];
         if (sources.length > 0) {
-          responseText += "\n\n📚 Sources:";
-          sources.forEach((source: string, index: number) => {
-            // Format source display name
-            const displayName = source.startsWith('Document ') ?
-              `Doc ${source.replace('Document ', '').substring(0, 8)}...` :
-              source;
-            responseText += `\n${index + 1}. ${displayName}`;
-          });
+          enhancedSources = sources.map((source: string, index: number) => ({
+            name: source,
+            id: documentIds[index] || null,
+            version: documentVersions[index] || null,
+            relevance: relevanceScores[index] || null
+          }));
+        } else if (documentIds.length > 0) {
+          enhancedSources = documentIds.map((id: string, index: number) => ({
+            id: id,
+            version: documentVersions[index] || null,
+            relevance: relevanceScores[index] || null
+          }));
         }
 
+        // Return structured JSON response
+        const structuredResponse = {
+          answer: answer || "No response received",
+          sources: enhancedSources.length > 0 ? enhancedSources : sources.length > 0 ? sources : documentIds,
+          metadata: {
+            query: validatedArgs.query,
+            sourceCount: sources.length || documentIds.length,
+            timestamp: new Date().toISOString()
+          }
+        };
+
         return {
-          content: [{ type: "text", text: responseText }],
+          content: [{ type: "text", text: JSON.stringify(structuredResponse, null, 2) }],
           isError: false,
         };
       } else {
-        // Plain text response for backward compatibility
-        const ragResponse = response.data || "No response received from RAG service.";
+        // Fallback for plain text responses from older API versions
+        const structuredResponse = {
+          answer: response.data || "No response received from RAG service.",
+          sources: [],
+          metadata: {
+            query: validatedArgs.query,
+            sourceCount: 0,
+            timestamp: new Date().toISOString()
+          }
+        };
         return {
-          content: [{ type: "text", text: ragResponse }],
+          content: [{ type: "text", text: JSON.stringify(structuredResponse, null, 2) }],
           isError: false,
         };
       }
