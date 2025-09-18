@@ -14,7 +14,7 @@ export const AskKnowledgeBaseInputSchema = z.object({
     .describe("Your question or query to get AI-generated answers from the knowledge base."),
   includeMetadata: z.boolean()
     .optional()
-    .default(false)
+    .default(true)
     .describe("Include source documents and metadata in the response")
 }).describe("Ask questions and get AI-generated answers from your knowledge base.");
 
