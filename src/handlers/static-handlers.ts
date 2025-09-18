@@ -395,7 +395,10 @@ Set environment variables in your terminal before launching the editor.
     try {
       const response = await axios.post(
         ragApiUrl,
-        { query: validatedArgs.query },
+        {
+          query: validatedArgs.query,
+          includeMetadata: validatedArgs.includeMetadata
+        },
         {
           headers: {
             'Authorization': `Bearer ${apiKey}`,
@@ -414,12 +417,35 @@ Set environment variables in your terminal before launching the editor.
         executionTime: timer.stop(),
       }).catch(() => {}); // Ignore notification errors
 
-      // The API returns plain text, so response.data is the text itself
-      const ragResponse = response.data || "No response received from RAG service.";
-      return {
-        content: [{ type: "text", text: ragResponse }],
-        isError: false,
-      };
+      // Handle response based on whether metadata was requested
+      if (validatedArgs.includeMetadata && typeof response.data === 'object' && response.data.answer) {
+        const { answer, sources = [] } = response.data;
+        let responseText = answer || "No response received";
+
+        // Append sources if available
+        if (sources.length > 0) {
+          responseText += "\n\n📚 Sources:";
+          sources.forEach((source: string, index: number) => {
+            // Format source display name
+            const displayName = source.startsWith('Document ') ?
+              `Doc ${source.replace('Document ', '').substring(0, 8)}...` :
+              source;
+            responseText += `\n${index + 1}. ${displayName}`;
+          });
+        }
+
+        return {
+          content: [{ type: "text", text: responseText }],
+          isError: false,
+        };
+      } else {
+        // Plain text response for backward compatibility
+        const ragResponse = response.data || "No response received from RAG service.";
+        return {
+          content: [{ type: "text", text: ragResponse }],
+          isError: false,
+        };
+      }
 
     } catch (apiError: any) {
       // Log failed RAG query

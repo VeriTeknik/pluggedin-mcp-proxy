@@ -12,6 +12,10 @@ export const AskKnowledgeBaseInputSchema = z.object({
     .min(1, "Query cannot be empty")
     .max(1000, "Query too long")
     .describe("Your question or query to get AI-generated answers from the knowledge base."),
+  includeMetadata: z.boolean()
+    .optional()
+    .default(false)
+    .describe("Include source documents and metadata in the response")
 }).describe("Ask questions and get AI-generated answers from your knowledge base.");
 
 // Input schema for send notification validation
