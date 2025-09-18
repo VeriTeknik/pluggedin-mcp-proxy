@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.10.3] - 2025-01-18
+
+### Added
+- **Enhanced RAG Tool with Metadata Support**
+  - Optional `includeMetadata` parameter for `pluggedin_ask_knowledge_base` tool
+  - Returns document sources and IDs when metadata requested
+  - Formatted response with source attribution
+  - Maintains backward compatibility with plain text responses
+
+### Changed
+- Updated ask knowledge base handler to format sources when available
+- Enhanced schema with optional metadata parameter
+
+### Fixed
+- Improved error handling for RAG queries
+- Better formatting of source documents in responses
+
 ## [1.4.0] - 2025-01-26
 
 ### Added
