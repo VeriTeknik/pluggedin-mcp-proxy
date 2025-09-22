@@ -1119,6 +1119,80 @@ Set environment variables in your terminal before launching the editor.
         responseText += `Description: ${doc.description}\n\n`;
       }
 
+      // Add AI metadata if present
+      if (doc.aiMetadata && Object.keys(doc.aiMetadata).length > 0) {
+        responseText += `--- AI Metadata ---\n`;
+        if (doc.aiMetadata.model) {
+          responseText += `Model: ${doc.aiMetadata.model.name} (${doc.aiMetadata.model.provider}`;
+          if (doc.aiMetadata.model.version) {
+            responseText += ` v${doc.aiMetadata.model.version}`;
+          }
+          responseText += `)\n`;
+        }
+        if (doc.aiMetadata.prompt) {
+          responseText += `Prompt: ${doc.aiMetadata.prompt}\n`;
+        }
+        if (doc.aiMetadata.updateReason) {
+          responseText += `Update Reason: ${doc.aiMetadata.updateReason}\n`;
+        }
+        if (doc.aiMetadata.changesFromPrompt) {
+          responseText += `Changes From Prompt: ${doc.aiMetadata.changesFromPrompt}\n`;
+        }
+        if (doc.aiMetadata.changeSummary) {
+          responseText += `Change Summary: ${doc.aiMetadata.changeSummary}\n`;
+        }
+        if (doc.aiMetadata.context) {
+          responseText += `Context: ${doc.aiMetadata.context}\n`;
+        }
+        if (doc.aiMetadata.visibility) {
+          responseText += `Visibility: ${doc.aiMetadata.visibility}\n`;
+        }
+        if (doc.aiMetadata.sessionId) {
+          responseText += `Session ID: ${doc.aiMetadata.sessionId}\n`;
+        }
+        if (doc.aiMetadata.lastUpdatedBy) {
+          responseText += `Last Updated By: ${doc.aiMetadata.lastUpdatedBy.name} (${doc.aiMetadata.lastUpdatedBy.provider}`;
+          if (doc.aiMetadata.lastUpdatedBy.version) {
+            responseText += ` v${doc.aiMetadata.lastUpdatedBy.version}`;
+          }
+          responseText += `)\n`;
+        }
+        if (doc.aiMetadata.lastUpdateTimestamp) {
+          responseText += `Last Update: ${new Date(doc.aiMetadata.lastUpdateTimestamp).toLocaleString()}\n`;
+        }
+        if (doc.aiMetadata.conversationContext && Array.isArray(doc.aiMetadata.conversationContext) && doc.aiMetadata.conversationContext.length > 0) {
+          responseText += `Conversation Context: ${doc.aiMetadata.conversationContext.length} messages\n`;
+        }
+        if (doc.aiMetadata.sourceDocuments && Array.isArray(doc.aiMetadata.sourceDocuments) && doc.aiMetadata.sourceDocuments.length > 0) {
+          responseText += `Source Documents: ${doc.aiMetadata.sourceDocuments.join(', ')}\n`;
+        }
+        if (doc.aiMetadata.generationParams) {
+          responseText += `Generation Parameters:\n`;
+          if (doc.aiMetadata.generationParams.temperature !== undefined) {
+            responseText += `  - Temperature: ${doc.aiMetadata.generationParams.temperature}\n`;
+          }
+          if (doc.aiMetadata.generationParams.maxTokens !== undefined) {
+            responseText += `  - Max Tokens: ${doc.aiMetadata.generationParams.maxTokens}\n`;
+          }
+          if (doc.aiMetadata.generationParams.topP !== undefined) {
+            responseText += `  - Top-P: ${doc.aiMetadata.generationParams.topP}\n`;
+          }
+        }
+        // Include any additional metadata fields dynamically
+        const knownFields = ['model', 'prompt', 'updateReason', 'changesFromPrompt', 'changeSummary', 'context', 'visibility', 'sessionId', 'lastUpdatedBy', 'lastUpdateTimestamp', 'conversationContext', 'sourceDocuments', 'generationParams', 'timestamp'];
+        const additionalFields = Object.keys(doc.aiMetadata).filter(key => !knownFields.includes(key));
+        if (additionalFields.length > 0) {
+          responseText += `Additional Metadata:\n`;
+          for (const field of additionalFields) {
+            const value = doc.aiMetadata[field];
+            if (value !== null && value !== undefined) {
+              responseText += `  - ${field}: ${typeof value === 'object' ? JSON.stringify(value) : value}\n`;
+            }
+          }
+        }
+        responseText += `\n`;
+      }
+
       if (validatedArgs.includeContent && doc.content) {
         responseText += `--- Content ---\n${doc.content}\n`;
       }
