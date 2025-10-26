@@ -5,10 +5,7 @@ import {
   getPluggedinMCPApiKey,
 } from "./utils.js";
 import { debugLog, debugError } from "./debug-log.js";
-// import { logger } from "./logging.js"; // No longer needed, get from container
-// import { container } from "./di-container.js"; // Removed DI container
-// import { Logger } from "./logging.js"; // Removed Logger type
-import { ServerParameters } from "./types.js"; // Import ServerParameters type
+import { ServerParameters } from "./types.js";
 
 let _mcpServersCache: Record<string, ServerParameters> | null = null;
 let _mcpServersCacheTimestamp: number = 0;

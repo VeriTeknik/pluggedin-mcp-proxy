@@ -1,27 +1,9 @@
 import { z } from "zod";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
-import {
-  Tool,
-  // ListToolsResultSchema, // No longer needed for live discovery
-  // CompatibilityCallToolResultSchema, // Keep for reference, but execute returns string now
-} from "@modelcontextprotocol/sdk/types.js";
-// import { getMcpServers, ServerParameters } from "../fetch-pluggedinmcp.js"; // No longer needed
-import { getPluggedinMCPApiKey, getPluggedinMCPApiBaseUrl } from "../utils.js"; // Import API utils
-// import { getSessionKey, sanitizeName } from "../utils.js"; // No longer needed
-// import { getSession } from "../sessions.js"; // No longer needed
-// import { reportToolsToPluggedinMCP } from "../report-tools.js"; // No longer needed
-// import { getInactiveTools, ToolParameters } from "../fetch-tools.js"; // No longer needed
-// import {
-//   getProfileCapabilities,
-//   ProfileCapability,
-// } from "../fetch-capabilities.js"; // No longer needed
-import axios from "axios"; // Import axios
-// import { logger } from "../logging.js"; // No longer needed, get from container
-// import { Cache } from "../cache.js"; // Removed Cache
-// import { container } from "../di-container.js"; // Removed DI container
-// import { Logger } from "../logging.js"; // Removed Logger type
-// import { ToolPlugin, pluginRegistry } from "../plugin-system.js"; // Removed Plugin System
-import { ToolExecutionResult } from "../types.js"; // Import execution result type
+import { Tool } from "@modelcontextprotocol/sdk/types.js";
+import { getPluggedinMCPApiKey, getPluggedinMCPApiBaseUrl } from "../utils.js";
+import axios from "axios";
+import { ToolExecutionResult } from "../types.js";
 
 // Removed Cache related definitions
 
@@ -74,7 +56,8 @@ async function _fetchServerNames(apiBaseUrl: string, apiKey: string): Promise<Re
  * Fetches the list of available proxied tools from the pluggedin-app API.
  */
 // Removed ToolPlugin interface implementation
-export class GetPluggedinToolsTool {
+// Note: Class kept for reference but not exported (unused in current implementation)
+class GetPluggedinToolsTool {
   readonly name = toolName;
   readonly description = toolDescription;
   readonly inputSchema = GetPluggedinToolsSchema;

@@ -28,8 +28,9 @@ export const staticPrompts = {
 
 /**
  * Get a static prompt by name
+ * Note: Function kept for reference but not exported (unused in current implementation)
  */
-export function getStaticPrompt(name: string): any | null {
+function getStaticPrompt(name: string): any | null {
   switch (name) {
     case "mcp_discover":
       return {

@@ -5,6 +5,39 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.10.5] - 2025-01-25
+
+### Fixed
+- **Critical: Fixed "stream is not readable" error in Streamable HTTP transport** (Fixes #32)
+  - Added `req.body` parameter to `transport.handleRequest()` calls
+  - Properly handles Express JSON middleware body parsing
+  - Resolves HTTP 400 parse errors when clients connect via Streamable HTTP
+- **MCP Best Practices: Graceful degradation for discovery methods**
+  - `list_prompts` returns static prompts when API key not configured
+  - `list_resources` returns empty array when API key not configured
+  - `list_resource_templates` returns empty array when API key not configured
+  - `list_tools` already supported graceful degradation (unchanged)
+  - Follows MCP specification for discovery without authentication
+
+### Added
+- New `inspector:http` npm script for testing Streamable HTTP transport with Inspector
+- Automated script to launch server + inspector for HTTP transport testing
+
+### Changed
+- Discovery methods no longer throw errors when API credentials are missing
+- Improved user experience for clients without API configuration
+- GET requests (SSE) now explicitly pass `undefined` as body parameter to `handleRequest()`
+- Increased inspector-http.js server startup timeout from 2s to 10s with polling
+
+### Breaking Changes
+- **Discovery methods behavior change (Improved MCP Compliance)**
+  - **Previous**: `list_prompts`, `list_resources`, `list_resource_templates` threw errors when API key not configured
+  - **New**: Return empty/static responses per MCP specification
+  - **Impact**: Clients that catch and handle these specific errors need to be updated
+  - **Migration**: Check for empty arrays instead of catching errors
+  - **Compliance**: This change brings the proxy into full compliance with MCP best practices
+  - **Note**: Most MCP clients expect empty arrays (per spec) and will work without changes
+
 ## [1.10.3] - 2025-01-18
 
 ### Added

@@ -128,18 +128,4 @@ export const updateDocumentStaticTool: Tool = {
   inputSchema: updateDocumentSchema,
 };
 
-// Export all static tools as an array for easy registration
-export const staticTools: Tool[] = [
-  setupStaticTool,
-  discoverToolsStaticTool,
-  askKnowledgeBaseStaticTool,
-  sendNotificationStaticTool,
-  listNotificationsStaticTool,
-  markNotificationDoneStaticTool,
-  deleteNotificationStaticTool,
-  createDocumentStaticTool,
-  listDocumentsStaticTool,
-  searchDocumentsStaticTool,
-  getDocumentStaticTool,
-  updateDocumentStaticTool
-];
+// Note: staticTools array removed - individual tools are imported directly where needed

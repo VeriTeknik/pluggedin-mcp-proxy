@@ -26,63 +26,6 @@ export function validateEnvVarName(name: string): boolean {
 }
 
 /**
- * Validates server UUID format (lightweight check)
- * @param uuid - The UUID to validate
- * @returns true if valid, false otherwise
- */
-export function validateServerUuid(uuid: string): boolean {
-  // Basic UUID format check - more permissive for client-side use
-  return /^[0-9a-f-]{36}$/i.test(uuid) && uuid.length === 36;
-}
-
-/**
- * Validates and sanitizes tool names (lightweight)
- * @param name - The tool name to validate
- * @returns sanitized name or null if invalid
- */
-export function validateToolName(name: string): string | null {
-  if (!name || typeof name !== 'string') return null;
-  
-  // Basic validation - allow reasonable tool name characters
-  if (name.length < 1 || name.length > 200) return null;
-  
-  return name; // Keep original for compatibility
-}
-
-/**
- * Validates URL with client-appropriate SSRF protection
- * @param url - The URL to validate
- * @returns true if valid, false otherwise
- */
-export function validateUrl(url: string): boolean {
-  try {
-    const parsed = new URL(url);
-    
-    // Only allow http and https protocols
-    if (!['http:', 'https:'].includes(parsed.protocol)) {
-      return false;
-    }
-    
-    // For client-side proxy, allow localhost and private IPs for local MCP servers
-    // Only block obviously dangerous patterns
-    const hostname = parsed.hostname.toLowerCase();
-    
-    // Block only clearly malicious patterns, not legitimate local services
-    const maliciousPatterns = [
-      'metadata.google.internal',
-      '169.254.169.254', // AWS/GCP metadata
-      'metadata.azure.com',
-      '[::]', // IPv6 all interfaces
-      '0.0.0.0' // All interfaces
-    ];
-    
-    return !maliciousPatterns.includes(hostname);
-  } catch {
-    return false;
-  }
-}
-
-/**
  * Validates API base URL (permissive for client use)
  * @param url - The URL to validate
  * @returns true if valid, false otherwise
@@ -94,20 +37,6 @@ export function validateApiUrl(url: string): boolean {
   } catch {
     return false;
   }
-}
-
-/**
- * Sanitizes command line arguments to prevent injection
- * @param args - Array of arguments
- * @returns Sanitized arguments
- */
-export function sanitizeCommandArgs(args: string[]): string[] {
-  return args.map(arg => {
-    // Remove only the most dangerous shell metacharacters
-    return String(arg)
-      .replace(/[;&|`$()]/g, '') // Remove shell command separators
-      .replace(/[\0\r\n]/g, ''); // Remove null bytes and newlines
-  });
 }
 
 /**

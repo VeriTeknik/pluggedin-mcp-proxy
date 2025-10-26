@@ -1,6 +1,6 @@
 {
   "name": "@pluggedin/pluggedin-mcp-proxy",
-  "version": "1.10.3",
+  "version": "1.10.5",
   "description": "Unified MCP proxy that aggregates all your MCP servers (STDIO, SSE, Streamable HTTP) into one powerful interface. Access any tool through a single connection, search across unified documents with built-in RAG, and receive notifications from any model. Test your MCPs instantly in the playground with Claude, Gemini, OpenAI, and xAI. Perfect for Smithery deployment and all MCP clients. Features real-time activity logging, custom notifications with email delivery, and seamless profile-based workspace switching.",
   "scripts": {
     "build": "tsc && shx chmod +x dist/*.js",
@@ -11,6 +11,7 @@
     "test:coverage": "vitest --coverage",
     "inspector": "node scripts/inspector-auto.js",
     "inspector:auto": "node scripts/inspector-simple.js",
+    "inspector:http": "dotenv -e .env.local -- concurrently --kill-others \"npm run build && node dist/index.js --transport streamable-http --port 12006\" \"wait-port localhost:12006 && npx @modelcontextprotocol/inspector http://localhost:12006/mcp\"",
     "inspector:manual": "dotenv -e .env.local npx @modelcontextprotocol/inspector dist/index.js -e PLUGGEDIN_API_KEY=${PLUGGEDIN_API_KEY} -e PLUGGEDIN_API_BASE_URL=${PLUGGEDIN_API_BASE_URL}",
     "inspector:auth": "dotenv -e .env.local npx @modelcontextprotocol/inspector dist/index.js -e PLUGGEDIN_API_KEY=${PLUGGEDIN_API_KEY} -e PLUGGEDIN_API_BASE_URL=${PLUGGEDIN_API_BASE_URL}",
     "inspector:staging": "dotenv -e .env.local npx @modelcontextprotocol/inspector dist/index.js -e PLUGGEDIN_API_KEY=${PLUGGEDIN_API_KEY} -e PLUGGEDIN_API_BASE_URL=${PLUGGEDIN_API_STAGING_BASE_URL}",
@@ -30,29 +31,29 @@
   },
   "homepage": "https://github.com/VeriTeknik/pluggedin-mcp#readme",
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.16.0",
-    "@types/uuid": "^10.0.0",
-    "axios": "^1.12.0",
-    "commander": "^14.0.0",
+    "@modelcontextprotocol/sdk": "^1.20.2",
+    "axios": "^1.12.2",
+    "commander": "^14.0.2",
     "express": "^5.1.0",
-    "quick-lru": "^7.1.0",
+    "quick-lru": "^7.3.0",
     "sanitize-html": "^2.17.0",
     "slugify": "^1.6.6",
-    "uuid": "^11.1.0",
-    "zod": "^3.23.8",
+    "zod": "^3.25.76",
     "zod-to-json-schema": "^3.24.1"
   },
   "devDependencies": {
-    "@types/express": "^5.0.3",
-    "@types/node": "^24.0.4",
+    "@types/express": "^5.0.4",
+    "@types/node": "^24.9.1",
     "@types/sanitize-html": "^2.16.0",
     "@types/supertest": "^6.0.3",
     "@vitest/ui": "^3.2.4",
+    "concurrently": "^9.1.2",
     "dotenv-cli": "^10.0.0",
     "shx": "^0.4.0",
     "supertest": "^7.1.1",
-    "typescript": "^5.8.3",
-    "vitest": "^3.2.4"
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4",
+    "wait-port": "^1.1.0"
   },
   "type": "module",
   "bin": {

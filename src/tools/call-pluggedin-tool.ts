@@ -10,16 +10,7 @@ import { getSessionKey, sanitizeName, getPluggedinMCPApiKey, getPluggedinMCPApiB
 import axios from "axios"; // Import axios
 import { getSession } from "../sessions.js";
 import { ConnectedClient } from "../client.js"; // Assuming ConnectedClient holds the session/client
-// import {
-//   getProfileCapabilities,
-//   ProfileCapability,
-// } from "../fetch-capabilities.js"; // Removed unused import
-// import { getInactiveTools, ToolParameters } from "../fetch-tools.js"; // Removed unused import
-// import { container } from "../di-container.js"; // Removed DI
-// import { Logger } from "../logging.js"; // Removed Logger
-// import { ToolPlugin, pluginRegistry } from "../plugin-system.js"; // Removed Plugin System
 import { ToolExecutionResult } from "../types.js";
-// import { getSessionKeyForTool } from '../tool-registry.js'; // Removed Tool Registry
 
 const toolName = "tool_call"; // Renamed to match veyrax-mcp convention
 const toolDescription = `
@@ -51,7 +42,8 @@ const CallPluggedinToolSchema = z.object({
  * Proxies a tool call to the appropriate downstream MCP server based on the prefixed tool name.
  */
 // Removed ToolPlugin interface implementation
-export class CallPluggedinToolTool {
+// Note: Class kept for reference but not exported (unused in current implementation)
+class CallPluggedinToolTool {
   readonly name = toolName;
   readonly description = toolDescription;
   readonly inputSchema = CallPluggedinToolSchema;
