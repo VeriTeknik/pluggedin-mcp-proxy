@@ -11,7 +11,7 @@
     "test:coverage": "vitest --coverage",
     "inspector": "node scripts/inspector-auto.js",
     "inspector:auto": "node scripts/inspector-simple.js",
-    "inspector:http": "node scripts/inspector-http.js",
+    "inspector:http": "dotenv -e .env.local -- concurrently --kill-others \"npm run build && node dist/index.js --transport streamable-http --port 12006\" \"wait-port localhost:12006 && npx @modelcontextprotocol/inspector http://localhost:12006/mcp\"",
     "inspector:manual": "dotenv -e .env.local npx @modelcontextprotocol/inspector dist/index.js -e PLUGGEDIN_API_KEY=${PLUGGEDIN_API_KEY} -e PLUGGEDIN_API_BASE_URL=${PLUGGEDIN_API_BASE_URL}",
     "inspector:auth": "dotenv -e .env.local npx @modelcontextprotocol/inspector dist/index.js -e PLUGGEDIN_API_KEY=${PLUGGEDIN_API_KEY} -e PLUGGEDIN_API_BASE_URL=${PLUGGEDIN_API_BASE_URL}",
     "inspector:staging": "dotenv -e .env.local npx @modelcontextprotocol/inspector dist/index.js -e PLUGGEDIN_API_KEY=${PLUGGEDIN_API_KEY} -e PLUGGEDIN_API_BASE_URL=${PLUGGEDIN_API_STAGING_BASE_URL}",
@@ -47,11 +47,13 @@
     "@types/sanitize-html": "^2.16.0",
     "@types/supertest": "^6.0.3",
     "@vitest/ui": "^3.2.4",
+    "concurrently": "^9.1.2",
     "dotenv-cli": "^10.0.0",
     "shx": "^0.4.0",
     "supertest": "^7.1.1",
     "typescript": "^5.9.3",
-    "vitest": "^3.2.4"
+    "vitest": "^3.2.4",
+    "wait-port": "^1.1.0"
   },
   "type": "module",
   "bin": {

@@ -330,9 +330,12 @@ describe('Streamable HTTP Transport', () => {
       cleanup = await startStreamableHTTPServer(mockServer, { port });
 
       const response = await request(`http://localhost:${port}`)
-        .get('/mcp');
+        .get('/mcp')
+        .set('Accept', 'text/event-stream');
 
       expect(response.status).toBe(200);
+      expect(response.headers['content-type']).toContain('text/event-stream');
+      expect(response.text).toMatch(/data:/); // Basic SSE format check
     });
 
     it('should pass undefined body for GET requests (SSE)', async () => {
