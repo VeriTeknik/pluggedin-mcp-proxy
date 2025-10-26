@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.10.5] - 2025-01-25
+
+### Fixed
+- **Critical: Fixed "stream is not readable" error in Streamable HTTP transport** (Fixes #32)
+  - Added `req.body` parameter to `transport.handleRequest()` calls
+  - Properly handles Express JSON middleware body parsing
+  - Resolves HTTP 400 parse errors when clients connect via Streamable HTTP
+- **MCP Best Practices: Graceful degradation for discovery methods**
+  - `list_prompts` returns static prompts when API key not configured
+  - `list_resources` returns empty array when API key not configured
+  - `list_resource_templates` returns empty array when API key not configured
+  - `list_tools` already supported graceful degradation (unchanged)
+  - Follows MCP specification for discovery without authentication
+
+### Added
+- New `inspector:http` npm script for testing Streamable HTTP transport with Inspector
+- Automated script to launch server + inspector for HTTP transport testing
+
+### Changed
+- Discovery methods no longer throw errors when API credentials are missing
+- Improved user experience for clients without API configuration
+
 ## [1.10.3] - 2025-01-18
 
 ### Added

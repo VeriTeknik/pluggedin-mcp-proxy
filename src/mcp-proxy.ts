@@ -1823,8 +1823,13 @@ The proxy acts as a unified gateway to all your MCP capabilities while providing
   const listPromptsHandler = withErrorHandling(async (request: any) => {
     const apiKey = getPluggedinMCPApiKey();
     const baseUrl = getPluggedinMCPApiBaseUrl();
+
+    // If no API key, return only static prompts (for MCP best practices)
     if (!apiKey || !baseUrl) {
-      throw new Error("Pluggedin API Key or Base URL is not configured.");
+      return {
+        prompts: [proxyCapabilitiesStaticPrompt],
+        nextCursor: undefined
+      };
     }
 
     const promptsApiUrl = `${baseUrl}/api/prompts`;
@@ -1859,8 +1864,13 @@ The proxy acts as a unified gateway to all your MCP capabilities while providing
   const listResourcesHandler = withErrorHandling(async (request: any) => {
     const apiKey = getPluggedinMCPApiKey();
     const baseUrl = getPluggedinMCPApiBaseUrl();
+
+    // If no API key, return empty resources (for MCP best practices)
     if (!apiKey || !baseUrl) {
-      throw new Error("Pluggedin API Key or Base URL is not configured.");
+      return {
+        resources: [],
+        nextCursor: undefined
+      };
     }
 
     const apiUrl = `${baseUrl}/api/resources`; // Assuming this is the correct endpoint
@@ -2015,8 +2025,13 @@ The proxy acts as a unified gateway to all your MCP capabilities while providing
   const listResourceTemplatesHandler = withErrorHandling(async (request: any) => {
     const apiKey = getPluggedinMCPApiKey();
     const baseUrl = getPluggedinMCPApiBaseUrl();
+
+    // If no API key, return empty templates (for MCP best practices)
     if (!apiKey || !baseUrl) {
-      throw new Error("Pluggedin API Key or Base URL is not configured.");
+      return {
+        resourceTemplates: [],
+        nextCursor: undefined
+      };
     }
 
     const apiUrl = `${baseUrl}/api/resource-templates`; // New endpoint

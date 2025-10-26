@@ -116,12 +116,12 @@ export async function startStreamableHTTPServer(
       switch (req.method) {
         case 'POST':
           // Handle MCP message
-          await transport.handleRequest(req, res);
+          await transport.handleRequest(req, res, req.body);
           break;
           
         case 'GET':
           // Handle SSE stream if supported
-          await transport.handleRequest(req, res);
+          await transport.handleRequest(req, res, req.body);
           break;
           
         case 'DELETE':
