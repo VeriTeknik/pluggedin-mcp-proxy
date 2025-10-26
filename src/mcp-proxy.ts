@@ -626,8 +626,8 @@ export const createServer = async () => {
                         const discoveryApiUrl = server_uuid
                             ? `${baseUrl}/api/discover/${server_uuid}`
                             : `${baseUrl}/api/discover/all`;
-                        
-                        axios.post(discoveryApiUrl, {}, {
+
+                        axios.post(discoveryApiUrl, { force_refresh: false }, {
                             headers: { Authorization: `Bearer ${apiKey}` },
                             timeout: 60000, // Background discovery timeout
                         }).catch(() => {}); // Fire and forget
@@ -653,10 +653,11 @@ export const createServer = async () => {
                     // For force refresh, get cached data first AND trigger discovery in background
                     try {
                         // Fire-and-forget: trigger discovery in background
-                        axios.post(discoveryApiUrl, {}, {
+                        axios.post(discoveryApiUrl, { force_refresh: true }, {
                             headers: { Authorization: `Bearer ${apiKey}` },
                             timeout: 60000, // 60s timeout for background discovery
-                        }).catch((bgError) => {
+                        }).catch(() => {
+                            // Ignore background discovery errors
                         });
 
                         // Get current cached data to show immediately
@@ -807,7 +808,7 @@ export const createServer = async () => {
                 } else {
                     // For regular discovery (no force refresh), wait for completion
                     try {
-                        const discoveryResponse = await axios.post(discoveryApiUrl, {}, {
+                        const discoveryResponse = await axios.post(discoveryApiUrl, { force_refresh: false }, {
                             headers: { Authorization: `Bearer ${apiKey}` },
                             timeout: 30000, // 30s timeout for regular discovery
                         });
