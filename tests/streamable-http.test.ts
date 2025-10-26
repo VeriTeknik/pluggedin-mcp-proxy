@@ -315,7 +315,7 @@ describe('Streamable HTTP Transport', () => {
 
     it('should handle GET requests for SSE', async () => {
       const port = 3011;
-      
+
       const mockTransport = {
         handleRequest: vi.fn((req, res) => {
           res.setHeader('Content-Type', 'text/event-stream');
@@ -324,15 +324,42 @@ describe('Streamable HTTP Transport', () => {
         }),
         close: vi.fn()
       };
-      
+
       (StreamableHTTPServerTransport as any).mockImplementation(() => mockTransport);
-      
+
       cleanup = await startStreamableHTTPServer(mockServer, { port });
-      
+
       const response = await request(`http://localhost:${port}`)
         .get('/mcp');
-      
+
       expect(response.status).toBe(200);
+    });
+
+    it('should pass undefined body for GET requests (SSE)', async () => {
+      const port = 3021;
+
+      let capturedBody: any = 'not-called';
+      const mockTransport = {
+        handleRequest: vi.fn((req, res, body) => {
+          // Capture the third parameter (body) that was passed
+          capturedBody = body;
+          res.setHeader('Content-Type', 'text/event-stream');
+          res.write('data: test\n\n');
+          res.end();
+        }),
+        close: vi.fn()
+      };
+
+      (StreamableHTTPServerTransport as any).mockImplementation(() => mockTransport);
+
+      cleanup = await startStreamableHTTPServer(mockServer, { port });
+
+      const response = await request(`http://localhost:${port}`)
+        .get('/mcp');
+
+      expect(response.status).toBe(200);
+      // Verify that undefined was explicitly passed as the body parameter for GET requests
+      expect(capturedBody).toBeUndefined();
     });
 
     it('should reject unsupported methods', async () => {

@@ -115,13 +115,15 @@ export async function startStreamableHTTPServer(
       // Handle different HTTP methods
       switch (req.method) {
         case 'POST':
-          // Handle MCP message
+          // POST requests have req.body parsed by express.json() middleware
+          // Pass the parsed body to avoid "stream is not readable" error
           await transport.handleRequest(req, res, req.body);
           break;
-          
+
         case 'GET':
-          // Handle SSE stream if supported
-          await transport.handleRequest(req, res, req.body);
+          // GET requests (SSE) don't have a request body
+          // Pass undefined explicitly as body parameter is optional
+          await transport.handleRequest(req, res, undefined);
           break;
           
         case 'DELETE':

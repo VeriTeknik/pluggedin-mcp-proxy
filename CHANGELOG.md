@@ -26,6 +26,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Discovery methods no longer throw errors when API credentials are missing
 - Improved user experience for clients without API configuration
+- GET requests (SSE) now explicitly pass `undefined` as body parameter to `handleRequest()`
+- Increased inspector-http.js server startup timeout from 2s to 10s with polling
+
+### Breaking Changes
+- **Discovery methods behavior change (Improved MCP Compliance)**
+  - **Previous**: `list_prompts`, `list_resources`, `list_resource_templates` threw errors when API key not configured
+  - **New**: Return empty/static responses per MCP specification
+  - **Impact**: Clients that catch and handle these specific errors need to be updated
+  - **Migration**: Check for empty arrays instead of catching errors
+  - **Compliance**: This change brings the proxy into full compliance with MCP best practices
+  - **Note**: Most MCP clients expect empty arrays (per spec) and will work without changes
 
 ## [1.10.3] - 2025-01-18
 

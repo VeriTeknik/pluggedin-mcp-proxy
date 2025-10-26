@@ -59,6 +59,38 @@ const sanitizedApiUrl = envVars.PLUGGEDIN_API_BASE_URL ? String(envVars.PLUGGEDI
 
 const port = 12006;
 
+/**
+ * Poll the server's health endpoint until it's ready
+ * @param {number} port - Server port
+ * @param {number} maxWaitMs - Maximum time to wait in milliseconds
+ * @returns {Promise<boolean>} - True if server is ready
+ */
+async function waitForServer(port, maxWaitMs = 10000) {
+  const startTime = Date.now();
+  const pollInterval = 500; // Check every 500ms
+  let attempts = 0;
+
+  while (Date.now() - startTime < maxWaitMs) {
+    attempts++;
+    try {
+      // Try to connect to the health endpoint
+      const response = await fetch(`http://localhost:${port}/health`);
+      if (response.ok) {
+        console.log(`✅ Server is ready! (took ${Date.now() - startTime}ms, ${attempts} attempts)`);
+        return true;
+      }
+    } catch (error) {
+      // Server not ready yet, continue polling
+      // Errors are expected while server is starting
+    }
+
+    // Wait before next poll
+    await new Promise(resolve => setTimeout(resolve, pollInterval));
+  }
+
+  throw new Error(`Server did not start within ${maxWaitMs}ms after ${attempts} attempts`);
+}
+
 // Start the HTTP server
 console.log(`📡 Starting MCP server on http://localhost:${port}...`);
 const serverProcess = spawn('node', [
@@ -74,12 +106,15 @@ const serverProcess = spawn('node', [
   }
 });
 
-// Wait a bit for server to start, then launch inspector
-setTimeout(() => {
+// Keep inspector process reference in outer scope for signal handlers
+let inspectorProcess = null;
+
+// Wait for server to be ready, then launch inspector
+waitForServer(port).then(() => {
   console.log('🔍 Launching MCP Inspector...');
   console.log(`🌐 Connecting to: http://localhost:${port}/mcp`);
 
-  const inspectorProcess = spawn('npx', [
+  inspectorProcess = spawn('npx', [
     '@modelcontextprotocol/inspector',
     `http://localhost:${port}/mcp`
   ], {
@@ -97,17 +132,22 @@ setTimeout(() => {
   // Handle Ctrl+C
   process.on('SIGINT', () => {
     console.log('\n🛑 Stopping inspector and server...');
-    inspectorProcess.kill('SIGINT');
+    if (inspectorProcess) inspectorProcess.kill('SIGINT');
     serverProcess.kill('SIGINT');
     process.exit(0);
   });
 
   process.on('SIGTERM', () => {
-    inspectorProcess.kill('SIGTERM');
+    if (inspectorProcess) inspectorProcess.kill('SIGTERM');
     serverProcess.kill('SIGTERM');
     process.exit(0);
   });
-}, 2000); // Wait 2 seconds for server to start
+}).catch(error => {
+  console.error(`❌ ${error.message}`);
+  console.error('💡 Make sure the server builds successfully: npm run build');
+  serverProcess.kill('SIGTERM');
+  process.exit(1);
+});
 
 // Handle server exit
 serverProcess.on('close', (code) => {
