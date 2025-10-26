@@ -6,8 +6,6 @@ import {
   connectPluggedinMCPClient,
 } from "./client.js";
 import { getSessionKey } from "./utils.js";
-// import { container } from './di-container.js'; // Removed DI container
-// import { Logger } from './logging.js'; // Removed Logger type
 
 const _sessions: Record<string, ConnectedClient> = {};
 

@@ -107,15 +107,15 @@ describe('Streamable HTTP Transport', () => {
   describe('Authentication', () => {
     it('should reject requests without API key when auth is required', async () => {
       const port = 3003;
-      cleanup = await startStreamableHTTPServer(mockServer, { 
-        port, 
-        requireApiAuth: true 
+      cleanup = await startStreamableHTTPServer(mockServer, {
+        port,
+        requireApiAuth: true
       });
-      
+
       const response = await request(`http://localhost:${port}`)
         .post('/mcp')
-        .send({ jsonrpc: '2.0', method: 'test', params: {} });
-      
+        .send({ jsonrpc: '2.0', method: 'tools/call', params: {} });
+
       expect(response.status).toBe(401);
       expect(response.body.error.message).toContain('Unauthorized');
     });

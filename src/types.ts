@@ -101,24 +101,6 @@ export interface ResourceTemplate {
 }
 
 /**
- * Structure for reporting tools to the pluggedin-app API.
- * Matches the interface defined in report-tools.ts.
- */
-export interface PluggedinMCPToolReport extends Tool {
-  mcp_server_uuid: string;
-  status?: string; // e.g., 'ACTIVE', 'INACTIVE'
-}
-
-/**
- * Structure for reporting resources to the pluggedin-app API.
- * Matches the interface defined in report-tools.ts.
- */
-export interface PluggedinMCPResourceReport extends ResourceInfo {
-  mcp_server_uuid: string;
-  // Add status if needed for resources
-}
-
-/**
  * Structure for caching tool names (stringified JSON list) with expiration.
  */
 export interface ToolsCacheEntry {

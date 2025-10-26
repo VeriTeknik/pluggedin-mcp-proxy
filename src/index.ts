@@ -4,8 +4,6 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { createServer } from "./mcp-proxy.js";
 import { Command } from "commander";
 import { startStreamableHTTPServer } from "./streamable-http.js";
-// import { reportAllCapabilities } from "./report-tools.js"; // Removed reporting
-// import { cleanupAllSessions } from "./sessions.js"; // Cleanup handled by createServer return
 
 const program = new Command();
 

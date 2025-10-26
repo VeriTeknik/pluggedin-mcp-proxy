@@ -9,8 +9,6 @@ import { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import { ServerParameters } from "./types.js";
 import { createRequire } from 'module';
 import { debugLog, debugError } from './debug-log.js';
-// import { container } from './di-container.js'; // Removed DI container
-// import { Logger } from './logging.js'; // Removed Logger type
 
 const customRequire = createRequire(import.meta.url);
 const packageJson = customRequire('../package.json');
