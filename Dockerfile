@@ -3,40 +3,37 @@ FROM node:20-slim AS builder
 
 WORKDIR /app
 
-# Install pnpm globally
-RUN npm install -g pnpm
-
-# Copy package files for pnpm
-COPY package.json pnpm-lock.yaml ./
+# Copy package files
+COPY package*.json ./
 
 # Install all dependencies (including dev dependencies for building)
-RUN pnpm install
+RUN npm ci
 
 # Copy source code
 COPY . .
 
 # Build the application
-RUN pnpm run build
+RUN npm run build
 
 # Production stage
 FROM node:20-slim
 
 WORKDIR /app
 
-# Install pnpm globally
-RUN npm install -g pnpm
-
-# Copy package files for pnpm
-COPY package.json pnpm-lock.yaml ./
+# Copy package files
+COPY package*.json ./
 
 # Install only production dependencies
-RUN pnpm install --prod
+RUN npm ci --only=production
 
 # Copy built application from builder stage
 COPY --from=builder /app/dist ./dist
 
 # Copy required config files
 COPY smithery.yaml ./
+
+# Copy .well-known directory for Smithery discovery
+COPY .well-known ./.well-known
 
 # Set environment variables
 ENV NODE_ENV=production

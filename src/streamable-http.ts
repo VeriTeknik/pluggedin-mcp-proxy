@@ -26,6 +26,9 @@ export async function startStreamableHTTPServer(
   const app = express();
   const { port, requireApiAuth, stateless } = options;
 
+  // Serve static files from .well-known directory (for Smithery discovery)
+  app.use('/.well-known', express.static('.well-known'));
+
   // Middleware to parse JSON bodies
   app.use(express.json());
 
@@ -77,33 +80,6 @@ export async function startStreamableHTTPServer(
 
   // Apply middleware to all routes
   app.use(setupMiddleware);
-
-  // Configuration schema endpoint for Smithery
-  app.get('/.well-known/mcp-config', (_req: any, res: any) => {
-    res.json({
-      configSchema: {
-        type: "object",
-        properties: {
-          PLUGGEDIN_API_KEY: {
-            type: "string",
-            description: "Your Plugged.in API key for authenticated operations (get one at plugged.in/api-keys). Leave empty for tool discovery only."
-          },
-          PLUGGEDIN_API_BASE_URL: {
-            type: "string",
-            description: "Base URL for your Plugged.in instance (optional, defaults to https://plugged.in)",
-            default: "https://plugged.in"
-          },
-          REQUIRE_API_AUTH: {
-            type: "string",
-            description: "Require API key authentication for HTTP requests (true/false, defaults to false)",
-            default: "false",
-            enum: ["true", "false"]
-          }
-        },
-        required: []
-      }
-    });
-  });
 
   // MCP endpoint handler
   app.all('/mcp', async (req: any, res: any) => {
