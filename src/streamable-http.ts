@@ -26,23 +26,34 @@ export async function startStreamableHTTPServer(
   const app = express();
   const { port, requireApiAuth, stateless } = options;
 
+  // CORS middleware - apply to ALL routes first (including static files)
+  app.use((req: any, res: any, next: any) => {
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, mcp-session-id');
+
+    if (req.method === 'OPTIONS') {
+      return res.sendStatus(200);
+    }
+    next();
+  });
+
   // Serve static files from .well-known directory (for Smithery discovery)
-  app.use('/.well-known', express.static('.well-known'));
+  // This must come AFTER CORS but BEFORE authentication
+  app.use('/.well-known', express.static('.well-known', {
+    setHeaders: (res, path) => {
+      // Set proper Content-Type for mcp-config file
+      if (path.endsWith('mcp-config')) {
+        res.setHeader('Content-Type', 'application/json');
+      }
+    }
+  }));
 
   // Middleware to parse JSON bodies
   app.use(express.json());
 
-  // Combined middleware for CORS and authentication
+  // Authentication middleware - only for MCP endpoint
   const setupMiddleware = (req: any, res: any, next: any) => {
-    // CORS headers
-    res.header('Access-Control-Allow-Origin', '*');
-    res.header('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, mcp-session-id');
-    
-    if (req.method === 'OPTIONS') {
-      return res.sendStatus(200);
-    }
-
     // Lazy authentication - only check for tool invocations
     if (req.path === '/mcp' && requireApiAuth && req.method === 'POST') {
       // Parse the request body to check if it's a tool invocation
