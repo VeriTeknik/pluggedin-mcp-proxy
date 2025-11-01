@@ -1,9 +1,9 @@
-# plugged.in MCP Proxy Server
+# plugged.in MCP Hub — Proxy · Knowledge · Memory · Tools
 
 <div align="center">
   <img src="https://plugged.in/_next/image?url=%2Fpluggedin-wl.png&w=256&q=75" alt="plugged.in Logo" width="256" height="75">
   <h3>The Crossroads for AI Data Exchanges</h3>
-  <p>A unified interface for managing all your MCP servers with built-in playground for testing on any AI model</p>
+  <p>A unified MCP hub that gives your AI <strong>Knowledge</strong>, <strong>Memory</strong>, and <strong>Tools</strong> — not just a proxy. Manage and test all MCP servers from a single connection while powering document-aware and memory-augmented workflows across clients.</p>
 
   [![Version](https://img.shields.io/badge/version-1.9.0-blue?style=for-the-badge)](https://github.com/VeriTeknik/pluggedin-mcp/releases)
   [![GitHub Stars](https://img.shields.io/github/stars/VeriTeknik/pluggedin-mcp?style=for-the-badge)](https://github.com/VeriTeknik/pluggedin-mcp/stargazers)
@@ -17,6 +17,20 @@
 The plugged.in MCP Proxy Server is a powerful middleware that aggregates multiple Model Context Protocol (MCP) servers into a single unified interface. It fetches tool, prompt, and resource configurations from the [plugged.in App](https://github.com/VeriTeknik/pluggedin-app) and intelligently routes requests to the appropriate underlying MCP servers.
 
 This proxy enables seamless integration with any MCP client (Claude, Cline, Cursor, etc.) while providing advanced management capabilities through the plugged.in ecosystem.
+
+## Hub Pillars: Knowledge · Memory · Tools · Proxy
+
+**Knowledge (RAG v2 / AI Document Exchange)**  
+Search and ground model outputs with unified, attribution‑aware document retrieval. MCP servers can create and manage documents in your library with versioning, visibility controls, and model attribution. Use the built‑in RAG to search across all connected sources and return relevant snippets and metadata.
+
+**Memory (Persistent AI Memory)**  
+Long‑lived, workspace/profile‑scoped memory that survives sessions. The hub integrates with the plugged.in App’s persistent memory so agent actions and insights can be stored and recalled across tasks. Built‑in memory tools are on the roadmap to expose low‑friction `get/put/search` patterns under the same auth model.
+
+**Tools**  
+Aggregate built‑in capabilities with downstream MCP servers (STDIO, SSE, Streamable HTTP). Tool discovery is cached and can be refreshed on demand; hub‑level discovery returns a unified catalog for any MCP client. The hub supports tools, resources, resource templates, and prompts.
+
+**Proxy**  
+One connection for every client. Run as STDIO (default) or Streamable HTTP with optional API auth and stateless mode. Works with Claude Desktop, Cline, Cursor, MCP Inspector, and more; keep your existing client configs while centralizing policies and telemetry.
 
 > ⭐ **If you find this project useful, please consider giving it a star on GitHub!** It helps us reach more developers and motivates us to keep improving.
 
@@ -389,6 +403,116 @@ This will connect to the standard input/output of the running container.
 ### Stopping the Container
 
 Press `Ctrl+C` in the terminal where `docker run` is executing. The `--rm` flag ensures the container is removed automatically upon stopping.
+
+## ☁️ Smithery Cloud Deployment
+
+Deploy the plugged.in MCP Proxy to Smithery Cloud for hosted, always-available access to your MCP servers.
+
+### What is Smithery?
+
+[Smithery](https://smithery.ai) is a cloud platform for deploying and hosting MCP servers. It provides:
+- **Zero-configuration deployment** - Deploy directly from GitHub
+- **Automatic scaling** - Handle multiple concurrent connections
+- **Built-in monitoring** - Track usage and performance
+- **Easy configuration** - Web-based UI for settings
+
+### Deploying to Smithery
+
+1. **Visit Smithery**: Go to [smithery.ai](https://smithery.ai) and sign in
+2. **Connect Repository**: Link your GitHub account and select the `pluggedin-mcp` repository
+3. **Configure Settings**: Smithery will auto-detect the configuration from `smithery.yaml`
+4. **Set API Key**: Enter your Plugged.in API key in the configuration UI
+5. **Deploy**: Click deploy and your proxy will be available via HTTP
+
+### Configuration Options
+
+Smithery will present a configuration UI based on the exported schema. Available options:
+
+| Setting | Description | Default |
+|---------|-------------|---------|
+| **PLUGGEDIN_API_KEY** | Your Plugged.in API key (required for full functionality) | - |
+| **PLUGGEDIN_API_BASE_URL** | Base URL for your Plugged.in instance | `https://plugged.in` |
+| **PORT** | HTTP server port | `12006` |
+| **REQUIRE_API_AUTH** | Require API authentication for requests | `false` |
+
+### Deployment Modes
+
+#### Smithery Cloud (HTTP Only)
+- Uses Streamable HTTP transport
+- Stateful session management
+- Accessible via HTTPS endpoint
+- Suitable for web applications and remote clients
+- Configuration via Smithery UI
+
+#### Local CLI (STDIO)
+- Uses STDIO transport (default)
+- Direct process communication
+- For Claude Desktop, Cline, Cursor
+- Configuration via environment variables or CLI flags
+
+### Using Your Deployed Proxy
+
+Once deployed, connect to your Smithery-hosted proxy using the provided endpoint:
+
+```bash
+# Example connection URL (Smithery provides this)
+https://your-deployment.smithery.ai/mcp
+```
+
+Configure your MCP client to use the HTTP endpoint:
+
+```json
+{
+  "mcpServers": {
+    "pluggedin-cloud": {
+      "url": "https://your-deployment.smithery.ai/mcp",
+      "headers": {
+        "Authorization": "Bearer YOUR_API_KEY"
+      }
+    }
+  }
+}
+```
+
+### Benefits of Cloud Deployment
+
+- **24/7 Availability**: Your MCP proxy is always running
+- **No Local Resources**: Offload processing to the cloud
+- **Multiple Clients**: Share access across devices and applications
+- **Automatic Updates**: Deploy new versions with a single click
+- **Scalability**: Handle multiple concurrent sessions
+
+### Dual Deployment Strategy
+
+You can run both local and cloud instances:
+
+**Local (STDIO)**: For Claude Desktop, Cursor, and Cline on your machine
+```bash
+npx -y @pluggedin/pluggedin-mcp-proxy@latest --pluggedin-api-key YOUR_KEY
+```
+
+**Cloud (HTTP)**: For web applications, remote access, and shared use
+```
+https://your-deployment.smithery.ai/mcp
+```
+
+Both instances connect to the same Plugged.in account, giving you flexibility in how you access your MCP servers.
+
+## Autonomous Agents (Preview)
+
+The hub is designed to support agentic loops end‑to‑end:
+
+```
+MCP Client  →  plugged.in MCP Hub  →  (Plan → Act → Reflect)
+                                ↘  Knowledge  ↘  Memory  ↘  Tools
+```
+
+- Plan — derive goals and constraints, form task graphs.
+- Act — call tools from the unified catalog; route safely across STDIO/SSE/HTTP servers.
+- Reflect — persist outcomes into Memory and Knowledge (documents, notes, artifacts) to improve subsequent steps.
+
+**Safety & Ops**  
+Enable `--require-api-auth` in Streamable HTTP mode; use allowlists for commands, arguments, and env. Combine server‑level validation with client‑side prompts hardened against prompt‑injection. Leverage existing logging/telemetry to track tool usage and document mutations.
 
 ## 🏗️ System Architecture
 

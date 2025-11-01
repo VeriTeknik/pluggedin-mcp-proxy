@@ -1,21 +1,14 @@
-startCommand:
-  type: stdio
-  configSchema:
-    type: object
-    properties:
-      PLUGGEDIN_API_KEY:
-        type: string
-        description: Your Plugged.in API key for authenticated operations (see plugged.in/api-keys). Leave empty for tool discovery only.
-      PLUGGEDIN_API_BASE_URL:
-        type: string
-        description: Base URL for your Plugged.in instance (optional, defaults to https://plugged.in)
-  commandFunction: |
-    (config) => ({
-      command: 'node',
-      args: ['dist/index.js'],
-      env: {
-        ...process.env,
-        ...(config.PLUGGEDIN_API_KEY && { PLUGGEDIN_API_KEY: config.PLUGGEDIN_API_KEY }),
-        ...(config.PLUGGEDIN_API_BASE_URL && { PLUGGEDIN_API_BASE_URL: config.PLUGGEDIN_API_BASE_URL })
-      }
-    })
+# Smithery Cloud Deployment Configuration
+# Modern TypeScript deployment using exported createServer function
+# See: https://smithery.ai/docs/build/deployments/typescript
+
+runtime: "typescript"
+
+# Metadata
+name: "Plugged.in MCP Proxy"
+description: "Unified MCP proxy that aggregates all your MCP servers (STDIO, SSE, Streamable HTTP) into one powerful interface. Access any tool through a single connection, search across unified documents with built-in RAG, and receive notifications from any model."
+homepage: "https://github.com/VeriTeknik/pluggedin-mcp"
+repository: "https://github.com/VeriTeknik/pluggedin-mcp"
+
+# Configuration is handled by the exported configSchema in src/server.ts
+# Smithery will automatically generate a UI from the Zod schema

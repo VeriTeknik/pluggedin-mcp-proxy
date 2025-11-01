@@ -64,8 +64,10 @@
     "smithery.yaml"
   ],
   "main": "dist/index.js",
+  "module": "src/server.ts",
   "exports": {
     ".": "./dist/index.js",
+    "./server": "./dist/server.js",
     "./dist/report-tools.js": "./dist/report-tools.js"
   },
   "keywords": [
