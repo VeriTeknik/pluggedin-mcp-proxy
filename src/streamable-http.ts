@@ -49,6 +49,15 @@ export async function startStreamableHTTPServer(
     }
   }));
 
+  // Also expose well-known under /mcp/.well-known to support reverse proxies that prefix routes
+  app.use('/mcp/.well-known', express.static('.well-known', {
+    setHeaders: (res, path) => {
+      if (path.endsWith('mcp-config')) {
+        res.setHeader('Content-Type', 'application/json');
+      }
+    }
+  }));
+
   // Middleware to parse JSON bodies
   app.use(express.json());
 
@@ -92,8 +101,8 @@ export async function startStreamableHTTPServer(
   // Apply middleware to all routes
   app.use(setupMiddleware);
 
-  // MCP endpoint handler
-  app.all('/mcp', async (req: any, res: any) => {
+  // Shared MCP handler used for both /mcp and / routes
+  const mcpHandler = async (req: any, res: any) => {
     try {
       let transport: StreamableHTTPServerTransport;
       let sessionId: string | undefined;
@@ -189,7 +198,13 @@ export async function startStreamableHTTPServer(
         }
       });
     }
-  });
+  };
+
+  // MCP endpoint handler (preferred path)
+  app.all('/mcp', mcpHandler);
+
+  // Fallback root path handler for clients that POST to base URL
+  app.all('/', mcpHandler);
 
   // Health check endpoint
   app.get('/health', (_req: any, res: any) => {
