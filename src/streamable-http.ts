@@ -38,6 +38,21 @@ export async function startStreamableHTTPServer(
     next();
   });
 
+  // Normalize Accept header for MCP compatibility
+  // Some clients (and scanners) don't send both application/json and text/event-stream
+  // The MCP Streamable HTTP transport expects both to be acceptable.
+  app.use((req: any, _res: any, next: any) => {
+    const raw = (req.headers['accept'] as string | undefined)?.trim() || '';
+    const parts = raw ? raw.split(',').map((s) => s.trim()).filter(Boolean) : [];
+    const ensure = (mime: string) => {
+      if (!parts.some((p) => p.includes(mime))) parts.push(mime);
+    };
+    ensure('application/json');
+    ensure('text/event-stream');
+    req.headers['accept'] = parts.join(', ');
+    next();
+  });
+
   // Serve static files from .well-known directory (for Smithery discovery)
   // This must come AFTER CORS but BEFORE authentication
   app.use('/.well-known', express.static('.well-known', {
