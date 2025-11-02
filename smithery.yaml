@@ -12,6 +12,8 @@ build:
 # Start command configuration
 startCommand:
   type: "http"
+  endpoint: "/mcp"
+  health: "/health"
   configSchema:
     type: object
     properties:
@@ -25,6 +27,7 @@ startCommand:
       REQUIRE_API_AUTH:
         type: string
         description: "Require API key authentication for HTTP requests (true/false)"
+        enum: ["true", "false"]
         default: "false"
 
 # Metadata

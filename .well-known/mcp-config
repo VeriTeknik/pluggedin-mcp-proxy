@@ -1,4 +1,12 @@
 {
+  "startCommand": {
+    "type": "http",
+    "endpoint": "/mcp",
+    "health": "/health"
+  },
+  "transport": "streamable-http",
+  "endpoint": "/mcp",
+  "sseEndpoint": "/mcp",
   "configSchema": {
     "type": "object",
     "properties": {
