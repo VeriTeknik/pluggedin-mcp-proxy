@@ -591,11 +591,25 @@ describe('Streamable HTTP Transport', () => {
         expect(response.headers['access-control-allow-origin']).toBe('*');
         expect(response.headers['access-control-allow-methods']).toContain('POST');
       });
+
+      it('should handle OPTIONS preflight for non-/mcp endpoints consistently', async () => {
+        const port = 3023;
+        cleanup = await startStreamableHTTPServer(mockServer, { port });
+
+        const response = await request(`http://localhost:${port}`)
+          .options('/health');
+
+        expect(response.status).toBe(200);
+        expect(response.headers['access-control-allow-origin']).toBe('*');
+        expect(response.headers['access-control-allow-methods']).toContain('GET');
+        expect(response.headers['access-control-allow-headers']).toBeTruthy();
+        expect(response.headers['access-control-expose-headers']).toBeTruthy();
+      });
     });
 
     describe('Protocol Version', () => {
       it('should accept requests without protocol version', async () => {
-        const port = 3023;
+        const port = 3024;
 
         (StreamableHTTPServerTransport as any).mockImplementation(() => ({
           handleRequest: vi.fn((req, res) => {
@@ -614,7 +628,7 @@ describe('Streamable HTTP Transport', () => {
       });
 
       it('should accept valid protocol version', async () => {
-        const port = 3024;
+        const port = 3025;
 
         (StreamableHTTPServerTransport as any).mockImplementation(() => ({
           handleRequest: vi.fn((req, res) => {
@@ -634,7 +648,7 @@ describe('Streamable HTTP Transport', () => {
       });
 
       it('should reject unsupported protocol version', async () => {
-        const port = 3025;
+        const port = 3026;
         cleanup = await startStreamableHTTPServer(mockServer, { port });
 
         const response = await request(`http://localhost:${port}`)
@@ -648,7 +662,7 @@ describe('Streamable HTTP Transport', () => {
       });
 
       it('should send protocol version in response', async () => {
-        const port = 3026;
+        const port = 3027;
 
         (StreamableHTTPServerTransport as any).mockImplementation(() => ({
           handleRequest: vi.fn((req, res) => {
@@ -665,11 +679,41 @@ describe('Streamable HTTP Transport', () => {
 
         expect(response.headers['mcp-protocol-version']).toBe('2024-11-05');
       });
+
+      it('should always respond with Mcp-Protocol-Version header casing', async () => {
+        const port = 3028;
+
+        (StreamableHTTPServerTransport as any).mockImplementation(() => ({
+          handleRequest: vi.fn((req, res) => {
+            res.json({ jsonrpc: '2.0', result: 'success' });
+          }),
+          close: vi.fn()
+        }));
+
+        cleanup = await startStreamableHTTPServer(mockServer, { port });
+
+        // Try different casings for the request header
+        const casings = [
+          'mcp-protocol-version',
+          'MCP-PROTOCOL-VERSION',
+          'Mcp-Protocol-Version'
+        ];
+
+        for (const casing of casings) {
+          const response = await request(`http://localhost:${port}`)
+            .post('/mcp')
+            .set(casing, '2024-11-05')
+            .send({ jsonrpc: '2.0', method: 'initialize', params: {} });
+
+          // Check that the response header is set (supertest lowercases all headers)
+          expect(response.headers['mcp-protocol-version']).toBe('2024-11-05');
+        }
+      });
     });
 
     describe('Session Header Casing', () => {
-      it('should return Mcp-Session-Id with title case', async () => {
-        const port = 3027;
+      it('should return Mcp-Session-Id with title case in response headers', async () => {
+        const port = 3029;
 
         (StreamableHTTPServerTransport as any).mockImplementation((options: any) => ({
           handleRequest: vi.fn((req, res) => {
@@ -685,13 +729,45 @@ describe('Streamable HTTP Transport', () => {
           .post('/mcp')
           .send({ jsonrpc: '2.0', method: 'initialize', params: {} });
 
+        // Assert the header exists (supertest lowercases all headers)
         expect(response.headers['mcp-session-id']).toBeTruthy();
+      });
+
+      it('should accept session header with any casing in request', async () => {
+        const port = 3030;
+
+        (StreamableHTTPServerTransport as any).mockImplementation((options: any) => ({
+          handleRequest: vi.fn((req, res) => {
+            res.json({ jsonrpc: '2.0', result: 'success' });
+          }),
+          close: vi.fn(),
+          options
+        }));
+
+        cleanup = await startStreamableHTTPServer(mockServer, { port });
+
+        // Try different casings
+        const casings = [
+          { header: 'Mcp-Session-Id', value: 'session-title-case' },
+          { header: 'mcp-session-id', value: 'session-lower-case' },
+          { header: 'MCP-SESSION-ID', value: 'session-upper-case' }
+        ];
+
+        for (const { header, value } of casings) {
+          const response = await request(`http://localhost:${port}`)
+            .post('/mcp')
+            .set(header, value)
+            .send({ jsonrpc: '2.0', method: 'initialize', params: {} });
+
+          // The server should accept and process the session header regardless of casing
+          expect(response.status).not.toBe(400);
+        }
       });
     });
 
     describe('JSON-RPC Error Codes', () => {
       it('should return -32601 for unsupported HTTP method', async () => {
-        const port = 3028;
+        const port = 3031;
         cleanup = await startStreamableHTTPServer(mockServer, { port });
 
         const response = await request(`http://localhost:${port}`)
@@ -704,8 +780,8 @@ describe('Streamable HTTP Transport', () => {
         expect(response.body.error.message).toContain('not allowed');
       });
 
-      it('should return -32001 for authentication failures', async () => {
-        const port = 3029;
+      it('should return -32001 for authentication failures (missing Authorization header)', async () => {
+        const port = 3032;
         cleanup = await startStreamableHTTPServer(mockServer, {
           port,
           requireApiAuth: true
@@ -724,8 +800,50 @@ describe('Streamable HTTP Transport', () => {
         expect(response.body.error.message).toContain('Unauthorized');
       });
 
+      it('should return -32001 for malformed Authorization header', async () => {
+        const port = 3033;
+        cleanup = await startStreamableHTTPServer(mockServer, {
+          port,
+          requireApiAuth: true
+        });
+
+        const response = await request(`http://localhost:${port}`)
+          .post('/mcp')
+          .set('Authorization', 'MalformedToken') // Not a Bearer token
+          .send({
+            jsonrpc: '2.0',
+            method: 'tools/call',
+            params: {}
+          });
+
+        expect(response.status).toBe(401);
+        expect(response.body.error.code).toBe(-32001);
+        expect(response.body.error.message).toContain('Unauthorized');
+      });
+
+      it('should return -32001 for incorrect Bearer token', async () => {
+        const port = 3034;
+        cleanup = await startStreamableHTTPServer(mockServer, {
+          port,
+          requireApiAuth: true
+        });
+
+        const response = await request(`http://localhost:${port}`)
+          .post('/mcp')
+          .set('Authorization', 'Bearer invalidtoken') // Wrong token
+          .send({
+            jsonrpc: '2.0',
+            method: 'tools/call',
+            params: {}
+          });
+
+        expect(response.status).toBe(401);
+        expect(response.body.error.code).toBe(-32001);
+        expect(response.body.error.message).toContain('Unauthorized');
+      });
+
       it('should return -32603 for internal errors', async () => {
-        const port = 3030;
+        const port = 3035;
 
         (StreamableHTTPServerTransport as any).mockImplementation(() => ({
           handleRequest: vi.fn(() => {

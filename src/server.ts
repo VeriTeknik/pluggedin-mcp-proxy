@@ -11,6 +11,7 @@
 import { z } from "zod";
 import { createServer as createMCPServer } from "./mcp-proxy.js";
 import { startStreamableHTTPServer } from "./streamable-http.js";
+import { MIN_PORT, MAX_PORT, DEFAULT_PORT } from "./constants.js";
 
 /**
  * Configuration schema for Smithery deployment
@@ -52,8 +53,11 @@ export async function createServer(config: z.infer<typeof configSchema>) {
     process.env.PLUGGEDIN_API_BASE_URL = config.PLUGGEDIN_API_BASE_URL;
   }
 
-  // Parse configuration
-  const port = parseInt(config.PORT || "12006", 10);
+  // Parse configuration with validation
+  let port = parseInt(config.PORT || String(DEFAULT_PORT), 10);
+  if (isNaN(port) || port < MIN_PORT || port > MAX_PORT) {
+    port = DEFAULT_PORT;
+  }
   const requireApiAuth = config.REQUIRE_API_AUTH === "true";
 
   // Create the MCP server

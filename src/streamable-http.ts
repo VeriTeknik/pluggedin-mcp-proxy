@@ -18,8 +18,19 @@
 import express from 'express';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
-import { randomUUID } from 'crypto';
 import { debugLog, debugError } from './debug-log.js';
+import {
+  MCP_SESSION_ID_HEADER,
+  JSON_RPC_ERROR_CODES,
+} from './constants.js';
+import {
+  corsMiddleware,
+  versionMiddleware,
+  acceptMiddleware,
+  createAuthMiddleware,
+  createWellKnownHandler,
+  resolveTransport,
+} from './middleware.js';
 
 // Map to store active transports by session ID (for stateful mode)
 const transports = new Map<string, StreamableHTTPServerTransport>();
@@ -41,158 +52,30 @@ export async function startStreamableHTTPServer(
   options: StreamableHTTPOptions
 ): Promise<() => Promise<void>> {
   const app = express();
-  const { port, requireApiAuth, stateless } = options;
+  const { port, requireApiAuth = false, stateless = false } = options;
 
-  // CORS middleware - apply to ALL routes first (including static files)
-  app.use((req: any, res: any, next: any) => {
-    res.header('Access-Control-Allow-Origin', '*');
-    res.header('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Mcp-Session-Id, Mcp-Protocol-Version');
-    // MCP spec: Expose custom headers so clients can read them
-    res.header('Access-Control-Expose-Headers', 'Mcp-Session-Id, Mcp-Protocol-Version');
-
-    if (req.method === 'OPTIONS') {
-      return res.sendStatus(200);
-    }
-    next();
-  });
-
-  // MCP Protocol Version Validation
-  app.use((req: any, res: any, next: any) => {
-    // Only validate on MCP endpoint requests
-    if ((req.path === '/mcp' || req.path === '/') && req.method === 'POST') {
-      const version = req.headers['mcp-protocol-version'];
-
-      // Protocol version is optional but if provided, validate it
-      if (version && version !== '2024-11-05') {
-        return res.status(400).json({
-          jsonrpc: '2.0',
-          error: {
-            code: -32600, // Invalid Request
-            message: `Unsupported MCP protocol version: ${version}. Supported: 2024-11-05`
-          },
-          id: null
-        });
-      }
-
-      // Always send our protocol version in response
-      res.setHeader('Mcp-Protocol-Version', '2024-11-05');
-    }
-    next();
-  });
-
-  // Normalize Accept header for MCP compatibility
-  // Some clients (and scanners) don't send both application/json and text/event-stream
-  // The MCP Streamable HTTP transport expects both to be acceptable.
-  app.use((req: any, _res: any, next: any) => {
-    const raw = (req.headers['accept'] as string | undefined)?.trim() || '';
-    const parts = raw ? raw.split(',').map((s) => s.trim()).filter(Boolean) : [];
-    const ensure = (mime: string) => {
-      if (!parts.some((p) => p.includes(mime))) parts.push(mime);
-    };
-    ensure('application/json');
-    ensure('text/event-stream');
-    req.headers['accept'] = parts.join(', ');
-    next();
-  });
+  // Apply middleware in order: CORS, version validation, accept normalization
+  app.use(corsMiddleware);
+  app.use(versionMiddleware);
+  app.use(acceptMiddleware);
 
   // Serve static files from .well-known directory (for Smithery discovery)
   // This must come AFTER CORS but BEFORE authentication
-  app.use('/.well-known', express.static('.well-known', {
-    setHeaders: (res, path) => {
-      // Set proper Content-Type for mcp-config file
-      if (path.endsWith('mcp-config')) {
-        res.setHeader('Content-Type', 'application/json');
-      }
-    }
-  }));
-
-  // Also expose well-known under /mcp/.well-known to support reverse proxies that prefix routes
-  app.use('/mcp/.well-known', express.static('.well-known', {
-    setHeaders: (res, path) => {
-      if (path.endsWith('mcp-config')) {
-        res.setHeader('Content-Type', 'application/json');
-      }
-    }
-  }));
+  const wellKnownHandler = createWellKnownHandler();
+  app.use('/.well-known', wellKnownHandler);
+  app.use('/mcp/.well-known', wellKnownHandler);
 
   // Middleware to parse JSON bodies
   app.use(express.json());
 
   // Authentication middleware - only for MCP endpoint
-  const setupMiddleware = (req: any, res: any, next: any) => {
-    // Lazy authentication - only check for tool invocations
-    if (req.path === '/mcp' && requireApiAuth && req.method === 'POST') {
-      // Parse the request body to check if it's a tool invocation
-      const body = req.body;
-      if (body && typeof body === 'object') {
-        const method = body.method;
-        // Only require auth for tool/resource calls, not for capability discovery
-        const requiresAuth = method && (
-          method.startsWith('tools/') || 
-          method.startsWith('resources/') ||
-          method === 'tools/call' ||
-          method === 'resources/read'
-        );
-        
-        if (requiresAuth) {
-          const authHeader = req.headers.authorization;
-          const apiKey = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
-          
-          if (!apiKey || apiKey !== process.env.PLUGGEDIN_API_KEY) {
-            return res.status(401).json({
-              jsonrpc: '2.0',
-              error: {
-                code: -32001, // JSON-RPC 2.0: Server error (unauthorized)
-                message: 'Unauthorized: Invalid or missing API key'
-              },
-              id: body.id || null
-            });
-          }
-        }
-      }
-    }
-    
-    next();
-  };
-
-  // Apply middleware to all routes
-  app.use(setupMiddleware);
+  app.use(createAuthMiddleware(requireApiAuth));
 
   // Shared MCP handler used for both /mcp and / routes
   const mcpHandler = async (req: any, res: any) => {
     try {
-      let transport: StreamableHTTPServerTransport;
-      let sessionId: string | undefined;
-
-      if (stateless) {
-        // Create a new transport for each request in stateless mode
-        transport = new StreamableHTTPServerTransport({
-          sessionIdGenerator: undefined // Disable session management in stateless mode
-        });
-        await server.connect(transport);
-      } else {
-        // Use session-based transport management
-        // MCP spec: Use title case for custom headers
-        sessionId = req.headers['mcp-session-id'] as string || randomUUID();
-
-        if (!transports.has(sessionId)) {
-          // Create a new transport for this session
-          transport = new StreamableHTTPServerTransport({
-            sessionIdGenerator: () => sessionId!,
-            onsessioninitialized: (id) => {
-              debugLog(`Session initialized: ${id}`);
-            }
-          });
-          transports.set(sessionId, transport);
-          await server.connect(transport);
-
-          // Set session ID in response header (title case per MCP spec)
-          res.setHeader('Mcp-Session-Id', sessionId);
-        } else {
-          transport = transports.get(sessionId)!;
-        }
-      }
+      const transport = await resolveTransport(req, res, server, stateless, transports);
+      const sessionId = stateless ? undefined : (req.headers['mcp-session-id'] as string);
 
       // Handle different HTTP methods
       switch (req.method) {
@@ -210,33 +93,26 @@ export async function startStreamableHTTPServer(
           
         case 'DELETE':
           // Handle session termination
-          if (!stateless && sessionId && transports.has(sessionId)) {
+          if (stateless) {
+            // In stateless mode, always return success
+            res.status(200).json({ success: true, message: 'Stateless mode - no session to terminate' });
+          } else if (sessionId && transports.has(sessionId)) {
+            // Session exists, delete it
             const transport = transports.get(sessionId)!;
             await transport.close();
             transports.delete(sessionId);
             res.status(200).json({ success: true, message: 'Session terminated' });
-          } else if (!stateless && sessionId && !transports.has(sessionId)) {
-            // Session ID provided but doesn't exist - return success as nothing to delete
-            res.status(200).json({ success: true, message: 'Session not found' });
-          } else if (stateless) {
-            // In stateless mode, always return success
-            res.status(200).json({ success: true, message: 'Stateless mode - no session to terminate' });
           } else {
-            res.status(404).json({
-              jsonrpc: '2.0',
-              error: {
-                code: -32000,
-                message: 'Session not found'
-              }
-            });
+            // Session ID not provided or doesn't exist - return success as nothing to delete
+            res.status(200).json({ success: true, message: 'Session not found' });
           }
           break;
-          
+
         default:
           res.status(405).json({
             jsonrpc: '2.0',
             error: {
-              code: -32601, // JSON-RPC 2.0: Method not found
+              code: JSON_RPC_ERROR_CODES.METHOD_NOT_FOUND,
               message: `HTTP method ${req.method} not allowed`
             }
           });
@@ -251,7 +127,7 @@ export async function startStreamableHTTPServer(
       res.status(500).json({
         jsonrpc: '2.0',
         error: {
-          code: -32603,
+          code: JSON_RPC_ERROR_CODES.INTERNAL_ERROR,
           message: 'Internal server error',
           data: error instanceof Error ? error.message : String(error)
         }

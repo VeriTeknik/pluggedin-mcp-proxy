@@ -406,97 +406,27 @@ Press `Ctrl+C` in the terminal where `docker run` is executing. The `--rm` flag 
 
 ## ☁️ Smithery Cloud Deployment
 
-Deploy the plugged.in MCP Proxy to Smithery Cloud for hosted, always-available access to your MCP servers.
+Deploy the plugged.in MCP Proxy to [Smithery Cloud](https://smithery.ai) for hosted, always-available access to your MCP servers.
 
-### What is Smithery?
+### Quick Start
 
-[Smithery](https://smithery.ai) is a cloud platform for deploying and hosting MCP servers. It provides:
-- **Zero-configuration deployment** - Deploy directly from GitHub
-- **Automatic scaling** - Handle multiple concurrent connections
-- **Built-in monitoring** - Track usage and performance
-- **Easy configuration** - Web-based UI for settings
+1. Visit [smithery.ai](https://smithery.ai) and sign in
+2. Connect your GitHub account and select the `pluggedin-mcp` repository
+3. Configure your Plugged.in API key in the Smithery UI
+4. Deploy and get your HTTPS endpoint
 
-### Deploying to Smithery
+### Benefits
 
-1. **Visit Smithery**: Go to [smithery.ai](https://smithery.ai) and sign in
-2. **Connect Repository**: Link your GitHub account and select the `pluggedin-mcp` repository
-3. **Configure Settings**: Smithery will auto-detect the configuration from `smithery.yaml`
-4. **Set API Key**: Enter your Plugged.in API key in the configuration UI
-5. **Deploy**: Click deploy and your proxy will be available via HTTP
+- **24/7 Availability**: Your proxy is always running
+- **Zero Configuration**: Smithery auto-detects settings from `smithery.yaml`
+- **Automatic Scaling**: Handle multiple concurrent connections
+- **Web Access**: Perfect for web applications and remote clients
 
-### Configuration Options
+### Documentation
 
-Smithery will present a configuration UI based on the exported schema. Available options:
+For complete deployment instructions, configuration options, troubleshooting, and technical details, see:
 
-| Setting | Description | Default |
-|---------|-------------|---------|
-| **PLUGGEDIN_API_KEY** | Your Plugged.in API key (required for full functionality) | - |
-| **PLUGGEDIN_API_BASE_URL** | Base URL for your Plugged.in instance | `https://plugged.in` |
-| **PORT** | HTTP server port | `12006` |
-| **REQUIRE_API_AUTH** | Require API authentication for requests | `false` |
-
-### Deployment Modes
-
-#### Smithery Cloud (HTTP Only)
-- Uses Streamable HTTP transport
-- Stateful session management
-- Accessible via HTTPS endpoint
-- Suitable for web applications and remote clients
-- Configuration via Smithery UI
-
-#### Local CLI (STDIO)
-- Uses STDIO transport (default)
-- Direct process communication
-- For Claude Desktop, Cline, Cursor
-- Configuration via environment variables or CLI flags
-
-### Using Your Deployed Proxy
-
-Once deployed, connect to your Smithery-hosted proxy using the provided endpoint:
-
-```bash
-# Example connection URL (Smithery provides this)
-https://your-deployment.smithery.ai/mcp
-```
-
-Configure your MCP client to use the HTTP endpoint:
-
-```json
-{
-  "mcpServers": {
-    "pluggedin-cloud": {
-      "url": "https://your-deployment.smithery.ai/mcp",
-      "headers": {
-        "Authorization": "Bearer YOUR_API_KEY"
-      }
-    }
-  }
-}
-```
-
-### Benefits of Cloud Deployment
-
-- **24/7 Availability**: Your MCP proxy is always running
-- **No Local Resources**: Offload processing to the cloud
-- **Multiple Clients**: Share access across devices and applications
-- **Automatic Updates**: Deploy new versions with a single click
-- **Scalability**: Handle multiple concurrent sessions
-
-### Dual Deployment Strategy
-
-You can run both local and cloud instances:
-
-**Local (STDIO)**: For Claude Desktop, Cursor, and Cline on your machine
-```bash
-npx -y @pluggedin/pluggedin-mcp-proxy@latest --pluggedin-api-key YOUR_KEY
-```
-
-**Cloud (HTTP)**: For web applications, remote access, and shared use
-```
-https://your-deployment.smithery.ai/mcp
-```
-
-Both instances connect to the same Plugged.in account, giving you flexibility in how you access your MCP servers.
+**📖 [Smithery Deployment Guide](docs/SMITHERY_DEPLOYMENT.md)**
 
 ## Autonomous Agents (Preview)
 
