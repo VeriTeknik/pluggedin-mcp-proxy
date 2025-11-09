@@ -1,3 +1,20 @@
+/**
+ * Streamable HTTP Server Transport for MCP Proxy
+ *
+ * MCP Protocol Compliance:
+ * - Headers use Title-Case per MCP spec (Mcp-Session-Id, Mcp-Protocol-Version)
+ * - CORS headers expose custom headers to clients
+ * - Protocol version validation (2024-11-05)
+ * - JSON-RPC 2.0 compliant error codes
+ *
+ * JSON-RPC Error Codes Used:
+ * - -32600: Invalid Request (malformed request, unsupported protocol version)
+ * - -32601: Method not found (HTTP method not allowed)
+ * - -32603: Internal error (server-side exception)
+ * - -32001: Server error - Unauthorized (auth failure)
+ * - -32000: Server error - Generic application error (session not found, etc.)
+ */
+
 import express from 'express';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
@@ -30,10 +47,36 @@ export async function startStreamableHTTPServer(
   app.use((req: any, res: any, next: any) => {
     res.header('Access-Control-Allow-Origin', '*');
     res.header('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, mcp-session-id');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Mcp-Session-Id, Mcp-Protocol-Version');
+    // MCP spec: Expose custom headers so clients can read them
+    res.header('Access-Control-Expose-Headers', 'Mcp-Session-Id, Mcp-Protocol-Version');
 
     if (req.method === 'OPTIONS') {
       return res.sendStatus(200);
+    }
+    next();
+  });
+
+  // MCP Protocol Version Validation
+  app.use((req: any, res: any, next: any) => {
+    // Only validate on MCP endpoint requests
+    if ((req.path === '/mcp' || req.path === '/') && req.method === 'POST') {
+      const version = req.headers['mcp-protocol-version'];
+
+      // Protocol version is optional but if provided, validate it
+      if (version && version !== '2024-11-05') {
+        return res.status(400).json({
+          jsonrpc: '2.0',
+          error: {
+            code: -32600, // Invalid Request
+            message: `Unsupported MCP protocol version: ${version}. Supported: 2024-11-05`
+          },
+          id: null
+        });
+      }
+
+      // Always send our protocol version in response
+      res.setHeader('Mcp-Protocol-Version', '2024-11-05');
     }
     next();
   });
@@ -100,7 +143,7 @@ export async function startStreamableHTTPServer(
             return res.status(401).json({
               jsonrpc: '2.0',
               error: {
-                code: -32000,
+                code: -32001, // JSON-RPC 2.0: Server error (unauthorized)
                 message: 'Unauthorized: Invalid or missing API key'
               },
               id: body.id || null
@@ -130,8 +173,9 @@ export async function startStreamableHTTPServer(
         await server.connect(transport);
       } else {
         // Use session-based transport management
+        // MCP spec: Use title case for custom headers
         sessionId = req.headers['mcp-session-id'] as string || randomUUID();
-        
+
         if (!transports.has(sessionId)) {
           // Create a new transport for this session
           transport = new StreamableHTTPServerTransport({
@@ -142,9 +186,9 @@ export async function startStreamableHTTPServer(
           });
           transports.set(sessionId, transport);
           await server.connect(transport);
-          
-          // Set session ID in response header
-          res.setHeader('mcp-session-id', sessionId);
+
+          // Set session ID in response header (title case per MCP spec)
+          res.setHeader('Mcp-Session-Id', sessionId);
         } else {
           transport = transports.get(sessionId)!;
         }
@@ -192,8 +236,8 @@ export async function startStreamableHTTPServer(
           res.status(405).json({
             jsonrpc: '2.0',
             error: {
-              code: -32000,
-              message: `Method ${req.method} not allowed`
+              code: -32601, // JSON-RPC 2.0: Method not found
+              message: `HTTP method ${req.method} not allowed`
             }
           });
       }

@@ -368,13 +368,13 @@ describe('Streamable HTTP Transport', () => {
     it('should reject unsupported methods', async () => {
       const port = 3012;
       cleanup = await startStreamableHTTPServer(mockServer, { port });
-      
+
       const response = await request(`http://localhost:${port}`)
         .put('/mcp')
         .send({ test: 'data' });
-      
+
       expect(response.status).toBe(405);
-      expect(response.body.error.message).toContain('Method PUT not allowed');
+      expect(response.body.error.message).toContain('HTTP method PUT not allowed');
     });
 
     it('should handle OPTIONS for CORS', async () => {
@@ -551,6 +551,198 @@ describe('Streamable HTTP Transport', () => {
       // Cleanup should not throw despite error
       await expect(cleanup()).resolves.not.toThrow();
       cleanup = undefined;
+    });
+  });
+
+  describe('MCP Protocol Compliance', () => {
+    describe('CORS Headers', () => {
+      it('should include Access-Control-Expose-Headers', async () => {
+        const port = 3020;
+        cleanup = await startStreamableHTTPServer(mockServer, { port });
+
+        const response = await request(`http://localhost:${port}`)
+          .get('/health');
+
+        expect(response.headers['access-control-expose-headers']).toBeTruthy();
+        expect(response.headers['access-control-expose-headers']).toContain('Mcp-Session-Id');
+        expect(response.headers['access-control-expose-headers']).toContain('Mcp-Protocol-Version');
+      });
+
+      it('should allow MCP headers in CORS', async () => {
+        const port = 3021;
+        cleanup = await startStreamableHTTPServer(mockServer, { port });
+
+        const response = await request(`http://localhost:${port}`)
+          .get('/health');
+
+        expect(response.headers['access-control-allow-headers']).toBeTruthy();
+        expect(response.headers['access-control-allow-headers']).toContain('Mcp-Session-Id');
+        expect(response.headers['access-control-allow-headers']).toContain('Mcp-Protocol-Version');
+      });
+
+      it('should handle OPTIONS preflight correctly', async () => {
+        const port = 3022;
+        cleanup = await startStreamableHTTPServer(mockServer, { port });
+
+        const response = await request(`http://localhost:${port}`)
+          .options('/mcp');
+
+        expect(response.status).toBe(200);
+        expect(response.headers['access-control-allow-origin']).toBe('*');
+        expect(response.headers['access-control-allow-methods']).toContain('POST');
+      });
+    });
+
+    describe('Protocol Version', () => {
+      it('should accept requests without protocol version', async () => {
+        const port = 3023;
+
+        (StreamableHTTPServerTransport as any).mockImplementation(() => ({
+          handleRequest: vi.fn((req, res) => {
+            res.json({ jsonrpc: '2.0', result: 'success' });
+          }),
+          close: vi.fn()
+        }));
+
+        cleanup = await startStreamableHTTPServer(mockServer, { port });
+
+        const response = await request(`http://localhost:${port}`)
+          .post('/mcp')
+          .send({ jsonrpc: '2.0', method: 'initialize', params: {} });
+
+        expect(response.status).not.toBe(400);
+      });
+
+      it('should accept valid protocol version', async () => {
+        const port = 3024;
+
+        (StreamableHTTPServerTransport as any).mockImplementation(() => ({
+          handleRequest: vi.fn((req, res) => {
+            res.json({ jsonrpc: '2.0', result: 'success' });
+          }),
+          close: vi.fn()
+        }));
+
+        cleanup = await startStreamableHTTPServer(mockServer, { port });
+
+        const response = await request(`http://localhost:${port}`)
+          .post('/mcp')
+          .set('Mcp-Protocol-Version', '2024-11-05')
+          .send({ jsonrpc: '2.0', method: 'initialize', params: {} });
+
+        expect(response.status).not.toBe(400);
+      });
+
+      it('should reject unsupported protocol version', async () => {
+        const port = 3025;
+        cleanup = await startStreamableHTTPServer(mockServer, { port });
+
+        const response = await request(`http://localhost:${port}`)
+          .post('/mcp')
+          .set('Mcp-Protocol-Version', '2023-01-01')
+          .send({ jsonrpc: '2.0', method: 'initialize', params: {} });
+
+        expect(response.status).toBe(400);
+        expect(response.body.error.code).toBe(-32600); // Invalid Request
+        expect(response.body.error.message).toContain('Unsupported MCP protocol version');
+      });
+
+      it('should send protocol version in response', async () => {
+        const port = 3026;
+
+        (StreamableHTTPServerTransport as any).mockImplementation(() => ({
+          handleRequest: vi.fn((req, res) => {
+            res.json({ jsonrpc: '2.0', result: 'success' });
+          }),
+          close: vi.fn()
+        }));
+
+        cleanup = await startStreamableHTTPServer(mockServer, { port });
+
+        const response = await request(`http://localhost:${port}`)
+          .post('/mcp')
+          .send({ jsonrpc: '2.0', method: 'initialize', params: {} });
+
+        expect(response.headers['mcp-protocol-version']).toBe('2024-11-05');
+      });
+    });
+
+    describe('Session Header Casing', () => {
+      it('should return Mcp-Session-Id with title case', async () => {
+        const port = 3027;
+
+        (StreamableHTTPServerTransport as any).mockImplementation((options: any) => ({
+          handleRequest: vi.fn((req, res) => {
+            res.json({ jsonrpc: '2.0', result: 'success' });
+          }),
+          close: vi.fn(),
+          options
+        }));
+
+        cleanup = await startStreamableHTTPServer(mockServer, { port });
+
+        const response = await request(`http://localhost:${port}`)
+          .post('/mcp')
+          .send({ jsonrpc: '2.0', method: 'initialize', params: {} });
+
+        expect(response.headers['mcp-session-id']).toBeTruthy();
+      });
+    });
+
+    describe('JSON-RPC Error Codes', () => {
+      it('should return -32601 for unsupported HTTP method', async () => {
+        const port = 3028;
+        cleanup = await startStreamableHTTPServer(mockServer, { port });
+
+        const response = await request(`http://localhost:${port}`)
+          .put('/mcp')
+          .send({ test: 'data' });
+
+        expect(response.status).toBe(405);
+        expect(response.body.jsonrpc).toBe('2.0');
+        expect(response.body.error.code).toBe(-32601); // Method not found
+        expect(response.body.error.message).toContain('not allowed');
+      });
+
+      it('should return -32001 for authentication failures', async () => {
+        const port = 3029;
+        cleanup = await startStreamableHTTPServer(mockServer, {
+          port,
+          requireApiAuth: true
+        });
+
+        const response = await request(`http://localhost:${port}`)
+          .post('/mcp')
+          .send({
+            jsonrpc: '2.0',
+            method: 'tools/call', // Requires auth
+            params: {}
+          });
+
+        expect(response.status).toBe(401);
+        expect(response.body.error.code).toBe(-32001); // Unauthorized
+        expect(response.body.error.message).toContain('Unauthorized');
+      });
+
+      it('should return -32603 for internal errors', async () => {
+        const port = 3030;
+
+        (StreamableHTTPServerTransport as any).mockImplementation(() => ({
+          handleRequest: vi.fn(() => {
+            throw new Error('Internal error');
+          }),
+          close: vi.fn()
+        }));
+
+        cleanup = await startStreamableHTTPServer(mockServer, { port });
+
+        const response = await request(`http://localhost:${port}`)
+          .post('/mcp')
+          .send({ jsonrpc: '2.0', method: 'test', params: {} });
+
+        expect(response.status).toBe(500);
+        expect(response.body.error.code).toBe(-32603); // Internal error
+      });
     });
   });
 });
