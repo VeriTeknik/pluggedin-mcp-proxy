@@ -12,18 +12,30 @@
 import express, { RequestHandler } from 'express';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
-import { randomUUID } from 'crypto';
+import { randomUUID, timingSafeEqual } from 'crypto';
 import { debugLog } from './debug-log.js';
 import {
   MCP_PROTOCOL_VERSION,
   MCP_SESSION_ID_HEADER,
   MCP_PROTOCOL_VERSION_HEADER,
   JSON_RPC_ERROR_CODES,
+  MAX_SESSIONS,
 } from './constants.js';
 
 /**
  * CORS middleware - allows cross-origin requests
  * Exposes custom MCP headers to clients per spec
+ *
+ * Security Note: CORS wildcard (*) is intentionally used here because:
+ * 1. This is a public MCP discovery API (/.well-known endpoints)
+ * 2. Authentication is handled separately via Bearer tokens (not cookies)
+ * 3. No sensitive data is exposed in unauthenticated responses
+ * 4. Discovery endpoints (tools/list, resources/list) are intentionally public
+ * 5. Sensitive operations (tools/call, resources/read) require API authentication
+ *
+ * This follows MCP specification best practices for public discovery endpoints.
+ * For production deployments requiring stricter CORS, configure a reverse proxy
+ * (e.g., nginx) to override these headers with specific allowed origins.
  */
 export const corsMiddleware: RequestHandler = (req: any, res: any, next: any) => {
   res.header('Access-Control-Allow-Origin', '*');
@@ -111,7 +123,12 @@ export function createAuthMiddleware(requireApiAuth: boolean): RequestHandler {
           const authHeader = req.headers.authorization;
           const apiKey = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
 
-          if (!apiKey || apiKey !== process.env.PLUGGEDIN_API_KEY) {
+          // Use timing-safe comparison to prevent timing attacks
+          const expectedKey = process.env.PLUGGEDIN_API_KEY || '';
+          const isValid = apiKey && apiKey.length === expectedKey.length &&
+            timingSafeEqual(Buffer.from(apiKey), Buffer.from(expectedKey));
+
+          if (!isValid) {
             return res.status(401).json({
               jsonrpc: '2.0',
               error: {
@@ -144,22 +161,58 @@ export function createWellKnownHandler() {
   });
 }
 
+// Session metadata interface (must match streamable-http.ts)
+interface SessionMetadata {
+  transport: StreamableHTTPServerTransport;
+  lastAccess: number;
+}
+
+/**
+ * Evict oldest session when max sessions limit is reached (LRU eviction)
+ */
+function evictOldestSession(sessions: Map<string, SessionMetadata>): void {
+  if (sessions.size === 0) return;
+
+  let oldestSessionId: string | null = null;
+  let oldestAccessTime = Infinity;
+
+  // Find session with oldest access time
+  for (const [sessionId, metadata] of sessions.entries()) {
+    if (metadata.lastAccess < oldestAccessTime) {
+      oldestAccessTime = metadata.lastAccess;
+      oldestSessionId = sessionId;
+    }
+  }
+
+  if (oldestSessionId) {
+    const metadata = sessions.get(oldestSessionId);
+    if (metadata) {
+      try {
+        metadata.transport.close().catch(() => {});
+      } catch {}
+      sessions.delete(oldestSessionId);
+      debugLog(`Evicted oldest session ${oldestSessionId} (LRU eviction)`);
+    }
+  }
+}
+
 /**
  * Resolves or creates a transport for the current request
  * Handles both stateful (session-based) and stateless modes
+ * Implements LRU eviction when max sessions limit is reached
  *
  * @param req - Express request object
  * @param res - Express response object
  * @param server - MCP server instance
  * @param stateless - Whether to use stateless mode
- * @param transports - Map of active transports (for stateful mode)
+ * @param sessions - Map of active sessions with metadata (for stateful mode)
  */
 export async function resolveTransport(
   req: any,
   res: any,
   server: Server,
   stateless: boolean,
-  transports: Map<string, StreamableHTTPServerTransport>
+  sessions: Map<string, SessionMetadata>
 ): Promise<StreamableHTTPServerTransport> {
   if (stateless) {
     // Create a new transport for each request in stateless mode
@@ -174,7 +227,12 @@ export async function resolveTransport(
   // MCP spec: Use title case for custom headers
   const sessionId = req.headers['mcp-session-id'] as string || randomUUID();
 
-  if (!transports.has(sessionId)) {
+  if (!sessions.has(sessionId)) {
+    // Check if we need to evict a session (LRU eviction)
+    if (sessions.size >= MAX_SESSIONS) {
+      evictOldestSession(sessions);
+    }
+
     // Create a new transport for this session
     const transport = new StreamableHTTPServerTransport({
       sessionIdGenerator: () => sessionId,
@@ -182,12 +240,22 @@ export async function resolveTransport(
         debugLog(`Session initialized: ${id}`);
       }
     });
-    transports.set(sessionId, transport);
+
+    const metadata: SessionMetadata = {
+      transport,
+      lastAccess: Date.now()
+    };
+
+    sessions.set(sessionId, metadata);
     await server.connect(transport);
 
     // Set session ID in response header (title case per MCP spec)
     res.setHeader(MCP_SESSION_ID_HEADER, sessionId);
+  } else {
+    // Update last access time for existing session
+    const metadata = sessions.get(sessionId)!;
+    metadata.lastAccess = Date.now();
   }
 
-  return transports.get(sessionId)!;
+  return sessions.get(sessionId)!.transport;
 }

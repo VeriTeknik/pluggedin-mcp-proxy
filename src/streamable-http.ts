@@ -22,6 +22,9 @@ import { debugLog, debugError } from './debug-log.js';
 import {
   MCP_SESSION_ID_HEADER,
   JSON_RPC_ERROR_CODES,
+  SESSION_TTL_MS,
+  SESSION_CLEANUP_INTERVAL_MS,
+  MAX_SESSIONS,
 } from './constants.js';
 import {
   corsMiddleware,
@@ -32,8 +35,76 @@ import {
   resolveTransport,
 } from './middleware.js';
 
-// Map to store active transports by session ID (for stateful mode)
-const transports = new Map<string, StreamableHTTPServerTransport>();
+// Session metadata interface
+interface SessionMetadata {
+  transport: StreamableHTTPServerTransport;
+  lastAccess: number;
+}
+
+// Map to store active sessions with metadata (for stateful mode)
+const sessions = new Map<string, SessionMetadata>();
+
+/**
+ * Clean up expired sessions based on TTL
+ * @returns Number of sessions cleaned up
+ */
+function cleanupExpiredSessions(): number {
+  const now = Date.now();
+  let cleanedCount = 0;
+
+  for (const [sessionId, metadata] of sessions.entries()) {
+    if (now - metadata.lastAccess > SESSION_TTL_MS) {
+      try {
+        metadata.transport.close().catch(error => {
+          debugError(`Error closing expired session ${sessionId}:`, error);
+        });
+      } catch (error) {
+        debugError(`Error closing expired session ${sessionId}:`, error);
+      }
+      sessions.delete(sessionId);
+      cleanedCount++;
+    }
+  }
+
+  if (cleanedCount > 0) {
+    debugLog(`Cleaned up ${cleanedCount} expired sessions`);
+  }
+
+  return cleanedCount;
+}
+
+/**
+ * Evict oldest session when max sessions limit is reached (LRU eviction)
+ */
+function evictOldestSession(): void {
+  if (sessions.size === 0) return;
+
+  let oldestSessionId: string | null = null;
+  let oldestAccessTime = Infinity;
+
+  // Find session with oldest access time
+  for (const [sessionId, metadata] of sessions.entries()) {
+    if (metadata.lastAccess < oldestAccessTime) {
+      oldestAccessTime = metadata.lastAccess;
+      oldestSessionId = sessionId;
+    }
+  }
+
+  if (oldestSessionId) {
+    const metadata = sessions.get(oldestSessionId);
+    if (metadata) {
+      try {
+        metadata.transport.close().catch(error => {
+          debugError(`Error closing evicted session ${oldestSessionId}:`, error);
+        });
+      } catch (error) {
+        debugError(`Error closing evicted session ${oldestSessionId}:`, error);
+      }
+      sessions.delete(oldestSessionId);
+      debugLog(`Evicted oldest session ${oldestSessionId} (LRU eviction)`);
+    }
+  }
+}
 
 export interface StreamableHTTPOptions {
   port: number;
@@ -74,7 +145,7 @@ export async function startStreamableHTTPServer(
   // Shared MCP handler used for both /mcp and / routes
   const mcpHandler = async (req: any, res: any) => {
     try {
-      const transport = await resolveTransport(req, res, server, stateless, transports);
+      const transport = await resolveTransport(req, res, server, stateless, sessions);
       const sessionId = stateless ? undefined : (req.headers['mcp-session-id'] as string);
 
       // Handle different HTTP methods
@@ -96,11 +167,11 @@ export async function startStreamableHTTPServer(
           if (stateless) {
             // In stateless mode, always return success
             res.status(200).json({ success: true, message: 'Stateless mode - no session to terminate' });
-          } else if (sessionId && transports.has(sessionId)) {
+          } else if (sessionId && sessions.has(sessionId)) {
             // Session exists, delete it
-            const transport = transports.get(sessionId)!;
-            await transport.close();
-            transports.delete(sessionId);
+            const metadata = sessions.get(sessionId)!;
+            await metadata.transport.close();
+            sessions.delete(sessionId);
             res.status(200).json({ success: true, message: 'Session terminated' });
           } else {
             // Session ID not provided or doesn't exist - return success as nothing to delete
@@ -129,7 +200,10 @@ export async function startStreamableHTTPServer(
         error: {
           code: JSON_RPC_ERROR_CODES.INTERNAL_ERROR,
           message: 'Internal server error',
-          data: error instanceof Error ? error.message : String(error)
+          // Only expose error details in development to prevent information disclosure
+          ...(process.env.NODE_ENV === 'development' && {
+            data: error instanceof Error ? error.message : String(error)
+          })
         }
       });
     }
@@ -143,12 +217,22 @@ export async function startStreamableHTTPServer(
 
   // Health check endpoint
   app.get('/health', (_req: any, res: any) => {
-    res.json({ 
-      status: 'ok', 
+    res.json({
+      status: 'ok',
       transport: 'streamable-http',
-      sessions: stateless ? 0 : transports.size 
+      sessions: stateless ? 0 : sessions.size,
+      maxSessions: stateless ? 0 : MAX_SESSIONS
     });
   });
+
+  // Set up periodic session cleanup (only in stateful mode)
+  let cleanupInterval: NodeJS.Timeout | null = null;
+  if (!stateless) {
+    cleanupInterval = setInterval(() => {
+      cleanupExpiredSessions();
+    }, SESSION_CLEANUP_INTERVAL_MS);
+    debugLog(`Session cleanup interval started (every ${SESSION_CLEANUP_INTERVAL_MS / 1000}s)`);
+  }
 
   // Start the Express server
   const httpServer = app.listen(port, () => {
@@ -165,15 +249,21 @@ export async function startStreamableHTTPServer(
 
   // Return cleanup function
   return async () => {
-    // Close all active transports
-    for (const [sessionId, transport] of transports) {
+    // Clear cleanup interval
+    if (cleanupInterval) {
+      clearInterval(cleanupInterval);
+      debugLog('Session cleanup interval stopped');
+    }
+
+    // Close all active sessions
+    for (const [sessionId, metadata] of sessions) {
       try {
-        await transport.close();
+        await metadata.transport.close();
       } catch (error) {
         debugError(`Error closing transport for session ${sessionId}:`, error);
       }
     }
-    transports.clear();
+    sessions.clear();
 
     // Close the HTTP server
     return new Promise((resolve) => {

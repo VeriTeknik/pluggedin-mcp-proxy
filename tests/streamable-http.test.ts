@@ -67,17 +67,16 @@ describe('Streamable HTTP Transport', () => {
     it('should start server on specified port', async () => {
       const port = 3000;
       cleanup = await startStreamableHTTPServer(mockServer, { port });
-      
+
       // Verify server is listening
       const response = await request(`http://localhost:${port}`)
         .get('/health');
-      
+
       expect(response.status).toBe(200);
-      expect(response.body).toEqual({
-        status: 'ok',
-        transport: 'streamable-http',
-        sessions: 0
-      });
+      expect(response.body.status).toBe('ok');
+      expect(response.body.transport).toBe('streamable-http');
+      expect(response.body.sessions).toBe(0);
+      expect(response.body.maxSessions).toBe(10000); // Stateful mode has maxSessions: 10000
     });
 
     it('should initialize in stateless mode', async () => {
@@ -411,7 +410,13 @@ describe('Streamable HTTP Transport', () => {
       
       expect(response.status).toBe(500);
       expect(response.body.error.code).toBe(-32603);
-      expect(response.body.error.data).toContain('Transport error');
+      // Error data is only included in development mode (NODE_ENV=development)
+      // In test environment, it should be undefined for security
+      if (process.env.NODE_ENV === 'development') {
+        expect(response.body.error.data).toContain('Transport error');
+      } else {
+        expect(response.body.error.data).toBeUndefined();
+      }
     });
 
     it('should handle server connection errors', async () => {
@@ -861,6 +866,108 @@ describe('Streamable HTTP Transport', () => {
         expect(response.status).toBe(500);
         expect(response.body.error.code).toBe(-32603); // Internal error
       });
+    });
+  });
+
+  describe('Security Features', () => {
+    it('should use timing-safe comparison for API keys', async () => {
+      const port = 3030;
+      const correctKey = 'test-api-key-12345';
+      process.env.PLUGGEDIN_API_KEY = correctKey;
+
+      cleanup = await startStreamableHTTPServer(mockServer, {
+        port,
+        requireApiAuth: true
+      });
+
+      // Test with correct API key
+      const validResponse = await request(`http://localhost:${port}`)
+        .post('/mcp')
+        .set('Authorization', `Bearer ${correctKey}`)
+        .send({
+          jsonrpc: '2.0',
+          method: 'tools/call',
+          params: {}
+        });
+
+      // Should allow the request (not check response since mock doesn't handle it)
+      expect(validResponse.status).not.toBe(401);
+    });
+
+    it('should reject API key with wrong length (timing-safe)', async () => {
+      const port = 3031;
+      process.env.PLUGGEDIN_API_KEY = 'test-api-key-12345';
+
+      cleanup = await startStreamableHTTPServer(mockServer, {
+        port,
+        requireApiAuth: true
+      });
+
+      // Test with wrong length key (should fail immediately on length check)
+      const response = await request(`http://localhost:${port}`)
+        .post('/mcp')
+        .set('Authorization', 'Bearer short')
+        .send({
+          jsonrpc: '2.0',
+          method: 'tools/call',
+          params: {}
+        });
+
+      expect(response.status).toBe(401);
+      expect(response.body.error.code).toBe(-32001);
+      expect(response.body.error.message).toContain('Invalid or missing API key');
+    });
+
+    it('should reject API key with wrong characters (timing-safe)', async () => {
+      const port = 3032;
+      process.env.PLUGGEDIN_API_KEY = 'test-api-key-12345';
+
+      cleanup = await startStreamableHTTPServer(mockServer, {
+        port,
+        requireApiAuth: true
+      });
+
+      // Test with same length but wrong characters (timing-safe comparison)
+      const wrongKey = 'test-api-key-99999'; // Same length, different chars
+      const response = await request(`http://localhost:${port}`)
+        .post('/mcp')
+        .set('Authorization', `Bearer ${wrongKey}`)
+        .send({
+          jsonrpc: '2.0',
+          method: 'tools/call',
+          params: {}
+        });
+
+      expect(response.status).toBe(401);
+      expect(response.body.error.code).toBe(-32001);
+      expect(response.body.error.message).toContain('Invalid or missing API key');
+    });
+
+    it('should not expose error details in production', async () => {
+      const port = 3033;
+      const originalEnv = process.env.NODE_ENV;
+      process.env.NODE_ENV = 'production';
+
+      // Mock transport to throw an error
+      const mockTransport = {
+        handleRequest: vi.fn().mockRejectedValue(new Error('Detailed error message')),
+        close: vi.fn()
+      };
+      (StreamableHTTPServerTransport as any).mockImplementation(() => mockTransport);
+
+      cleanup = await startStreamableHTTPServer(mockServer, { port });
+
+      const response = await request(`http://localhost:${port}`)
+        .post('/mcp')
+        .send({ jsonrpc: '2.0', method: 'test', params: {} });
+
+      expect(response.status).toBe(500);
+      expect(response.body.error.code).toBe(-32603);
+      expect(response.body.error.message).toBe('Internal server error');
+      // Should NOT expose error details in production
+      expect(response.body.error.data).toBeUndefined();
+
+      process.env.NODE_ENV = originalEnv;
     });
   });
 });

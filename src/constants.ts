@@ -26,6 +26,13 @@ export const MAX_PORT = 65535;
 export const DEFAULT_PORT = 12006;
 
 /**
+ * Session management constants
+ */
+export const SESSION_TTL_MS = 30 * 60 * 1000; // 30 minutes
+export const SESSION_CLEANUP_INTERVAL_MS = 60 * 1000; // 1 minute
+export const MAX_SESSIONS = 10000; // Maximum concurrent sessions
+
+/**
  * JSON-RPC 2.0 error codes used in MCP
  * @see https://www.jsonrpc.org/specification
  */
