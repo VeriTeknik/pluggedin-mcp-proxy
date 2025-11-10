@@ -436,6 +436,54 @@ export const createServer = async () => {
      }
   });
 
+  // List Resources Handler - Returns available resources from the knowledge base
+  server.setRequestHandler(ListResourcesRequestSchema, async () => {
+    const { RESOURCE_REGISTRY } = await import('./resources/registry.js');
+    const { ensureAuth } = await import('./resources/helpers.js');
+
+    // Check auth status - always succeeds for non-auth resources
+    const { key, base } = ensureAuth('pluggedin://setup', false);
+
+    // Filter resources based on auth status
+    return {
+      resources: RESOURCE_REGISTRY
+        .filter(r => !r.requiresAuth || (key && base))
+        .map(({ uri, mimeType, name, description }) => ({
+          uri,
+          mimeType,
+          name,
+          description,
+        })),
+    };
+  });
+
+  // Read Resource Handler - Returns content of a specific resource
+  server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
+    const { uri } = request.params;
+    const { RESOURCE_REGISTRY } = await import('./resources/registry.js');
+    const { ensureAuth } = await import('./resources/helpers.js');
+
+    // Find resource definition
+    const def = RESOURCE_REGISTRY.find(r => r.uri === uri);
+    if (!def) {
+      throw new Error(`Resource not found: ${uri}`);
+    }
+
+    // Check authentication if required
+    ensureAuth(uri, def.requiresAuth);
+
+    // Return resource content
+    return {
+      contents: [
+        {
+          uri,
+          mimeType: def.mimeType,
+          text: def.getContent(),
+        },
+      ],
+    };
+  });
+
   // Call Tool Handler - Routes tool calls to the appropriate downstream server
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const { name: requestedToolName, arguments: args } = request.params;

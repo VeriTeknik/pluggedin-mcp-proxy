@@ -5,6 +5,52 @@ import express from 'express';
 import request from 'supertest';
 import { startStreamableHTTPServer } from '../src/streamable-http';
 
+// Test port constants to avoid magic numbers and conflicts
+const TEST_PORTS = {
+  BASE: 3000,
+  STATELESS: 3001,
+  STATEFUL: 3002,
+  AUTH_NO_KEY: 3003,
+  AUTH_VALID_KEY: 3004,
+  AUTH_NO_REQUIRED: 3005,
+  SESSION_CREATE: 3006,
+  SESSION_REUSE: 3007,
+  SESSION_DELETE: 3008,
+  SESSION_DELETE_NO_HEADER: 3009,
+  HTTP_POST: 3010,
+  HTTP_GET: 3011,
+  HTTP_GET_BODY: 3012,
+  HTTP_UNSUPPORTED: 3013,
+  HTTP_OPTIONS: 3014,
+  ERROR_TRANSPORT: 3015,
+  ERROR_SERVER: 3016,
+  STATELESS_PER_REQUEST: 3017,
+  STATELESS_GET: 3018,
+  CLEANUP_ALL: 3019,
+  CLEANUP_ERROR: 3020,
+  CORS_EXPOSE: 3021,
+  CORS_ALLOW: 3022,
+  CORS_PREFLIGHT: 3023,
+  CORS_NON_MCP: 3024,
+  PROTOCOL_NONE: 3025,
+  PROTOCOL_2024: 3026,
+  PROTOCOL_2025: 3029,
+  PROTOCOL_UNSUPPORTED: 3027,
+  PROTOCOL_RESPONSE: 3028,
+  PROTOCOL_CASING: 3030,
+  SESSION_CASING_RESPONSE: 3031,
+  SESSION_CASING_REQUEST: 3032,
+  ERROR_UNSUPPORTED_METHOD: 3033,
+  ERROR_AUTH_MISSING: 3034,
+  ERROR_AUTH_MALFORMED: 3035,
+  ERROR_AUTH_INCORRECT: 3036,
+  ERROR_INTERNAL: 3037,
+  SECURITY_TIMING_SAFE: 3038,
+  SECURITY_WRONG_LENGTH: 3039,
+  SECURITY_WRONG_CHARS: 3040,
+  SECURITY_NO_DETAILS: 3041,
+} as const;
+
 // Mock the MCP SDK modules
 vi.mock('@modelcontextprotocol/sdk/server/index.js', () => ({
   Server: vi.fn().mockImplementation(() => ({
@@ -17,7 +63,7 @@ vi.mock('@modelcontextprotocol/sdk/server/index.js', () => ({
 vi.mock('@modelcontextprotocol/sdk/server/streamableHttp.js', () => {
   const mockHandleRequest = vi.fn();
   const mockClose = vi.fn();
-  
+
   return {
     StreamableHTTPServerTransport: vi.fn().mockImplementation((options) => ({
       handleRequest: mockHandleRequest,
@@ -632,8 +678,8 @@ describe('Streamable HTTP Transport', () => {
         expect(response.status).not.toBe(400);
       });
 
-      it('should accept valid protocol version', async () => {
-        const port = 3025;
+      it('should accept valid protocol version (2024-11-05)', async () => {
+        const port = TEST_PORTS.PROTOCOL_2024;
 
         (StreamableHTTPServerTransport as any).mockImplementation(() => ({
           handleRequest: vi.fn((req, res) => {
@@ -652,8 +698,51 @@ describe('Streamable HTTP Transport', () => {
         expect(response.status).not.toBe(400);
       });
 
+      it('should accept valid protocol version (2025-06-18)', async () => {
+        const port = TEST_PORTS.PROTOCOL_2025;
+
+        (StreamableHTTPServerTransport as any).mockImplementation(() => ({
+          handleRequest: vi.fn((req, res) => {
+            res.json({ jsonrpc: '2.0', result: 'success' });
+          }),
+          close: vi.fn()
+        }));
+
+        cleanup = await startStreamableHTTPServer(mockServer, { port });
+
+        const response = await request(`http://localhost:${port}`)
+          .post('/mcp')
+          .set('Mcp-Protocol-Version', '2025-06-18')
+          .send({ jsonrpc: '2.0', method: 'initialize', params: {} });
+
+        expect(response.status).not.toBe(400);
+      });
+
+      it('should default to latest protocol version when header is missing', async () => {
+        const port = 3042;
+
+        (StreamableHTTPServerTransport as any).mockImplementation(() => ({
+          handleRequest: vi.fn((req, res) => {
+            res.json({ jsonrpc: '2.0', result: 'success' });
+          }),
+          close: vi.fn()
+        }));
+
+        cleanup = await startStreamableHTTPServer(mockServer, { port });
+
+        // Request without Mcp-Protocol-Version header
+        const response = await request(`http://localhost:${port}`)
+          .post('/mcp')
+          .send({ jsonrpc: '2.0', method: 'initialize', params: {} });
+
+        // Should not reject requests without protocol version
+        expect(response.status).not.toBe(400);
+        // Server should set the latest protocol version in response
+        expect(response.headers['mcp-protocol-version']).toBe('2025-06-18');
+      });
+
       it('should reject unsupported protocol version', async () => {
-        const port = 3026;
+        const port = TEST_PORTS.PROTOCOL_UNSUPPORTED;
         cleanup = await startStreamableHTTPServer(mockServer, { port });
 
         const response = await request(`http://localhost:${port}`)
@@ -662,6 +751,9 @@ describe('Streamable HTTP Transport', () => {
           .send({ jsonrpc: '2.0', method: 'initialize', params: {} });
 
         expect(response.status).toBe(400);
+        // Verify error message includes supported versions
+        expect(response.text).toContain('2024-11-05');
+        expect(response.text).toContain('2025-06-18');
         expect(response.body.error.code).toBe(-32600); // Invalid Request
         expect(response.body.error.message).toContain('Unsupported MCP protocol version');
       });
@@ -682,7 +774,7 @@ describe('Streamable HTTP Transport', () => {
           .post('/mcp')
           .send({ jsonrpc: '2.0', method: 'initialize', params: {} });
 
-        expect(response.headers['mcp-protocol-version']).toBe('2024-11-05');
+        expect(response.headers['mcp-protocol-version']).toBe('2025-06-18');
       });
 
       it('should always respond with Mcp-Protocol-Version header casing', async () => {
@@ -711,7 +803,8 @@ describe('Streamable HTTP Transport', () => {
             .send({ jsonrpc: '2.0', method: 'initialize', params: {} });
 
           // Check that the response header is set (supertest lowercases all headers)
-          expect(response.headers['mcp-protocol-version']).toBe('2024-11-05');
+          // Response always sends latest protocol version (2025-06-18)
+          expect(response.headers['mcp-protocol-version']).toBe('2025-06-18');
         }
       });
     });

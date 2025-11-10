@@ -25,8 +25,8 @@ program
   )
   .option(
     "--port <number>",
-    "Port for Streamable HTTP server (default: 12006)",
-    "12006"
+    "Port for Streamable HTTP server (default: 8081, respects PORT env var)",
+    "8081"
   )
   .option(
     "--stateless",
@@ -77,7 +77,8 @@ async function main() {
     
     if (options.transport === 'streamable-http') {
       // Streamable HTTP transport
-      const port = parseInt(options.port, 10) || 12006;
+      // Priority: PORT env var > CLI arg > default (8081)
+      const port = parseInt(process.env.PORT || options.port, 10) || 8081;
       // Only log to console for HTTP transport, not STDIO
       console.log(`Starting Streamable HTTP server on port ${port}...`);
       

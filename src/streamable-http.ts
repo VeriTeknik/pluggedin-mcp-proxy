@@ -235,8 +235,11 @@ export async function startStreamableHTTPServer(
   }
 
   // Start the Express server
-  const httpServer = app.listen(port, () => {
-    debugLog(`Streamable HTTP server listening on port ${port}`);
+  // Default to localhost for security, but allow override via BIND_HOST
+  // In Docker/Cloud (Smithery), Dockerfile sets BIND_HOST=0.0.0.0 to accept external connections
+  const host = process.env.BIND_HOST || 'localhost';
+  const httpServer = app.listen(port, host, () => {
+    debugLog(`Streamable HTTP server listening on ${host}:${port}`);
     if (stateless) {
       debugLog('Running in stateless mode');
     } else {

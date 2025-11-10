@@ -6,10 +6,17 @@
  */
 
 /**
- * Current MCP protocol version
+ * Supported MCP protocol versions (for backward compatibility)
  * @see https://spec.modelcontextprotocol.io/
  */
-export const MCP_PROTOCOL_VERSION = '2024-11-05';
+export const SUPPORTED_MCP_PROTOCOL_VERSIONS = ['2024-11-05', '2025-06-18'] as const;
+
+/**
+ * Current MCP protocol version (latest supported)
+ * Used in response headers to indicate server capabilities
+ * @see https://spec.modelcontextprotocol.io/
+ */
+export const MCP_PROTOCOL_VERSION = '2025-06-18';
 
 /**
  * HTTP header names for MCP protocol
@@ -23,7 +30,7 @@ export const MCP_PROTOCOL_VERSION_HEADER = 'Mcp-Protocol-Version';
  */
 export const MIN_PORT = 1;
 export const MAX_PORT = 65535;
-export const DEFAULT_PORT = 12006;
+export const DEFAULT_PORT = 8081; // Match Smithery/Docker port expectations
 
 /**
  * Session management constants

@@ -39,17 +39,35 @@ export const discoverToolsStaticTool: Tool = {
 };
 
 // Define the static tool for asking questions to the knowledge base
+const askKnowledgeBaseSchema = zodToJsonSchema(AskKnowledgeBaseInputSchema) as any;
+askKnowledgeBaseSchema.examples = [{
+  query: "What are the main features of our product?"
+}, {
+  query: "How do I configure authentication?"
+}];
+
 export const askKnowledgeBaseStaticTool: Tool = {
   name: "pluggedin_ask_knowledge_base",
   description: "Ask questions and get AI-generated answers from your knowledge base. Returns structured JSON with answer, document sources, and metadata. For finding specific documents, use pluggedin_search_documents instead.",
-  inputSchema: zodToJsonSchema(AskKnowledgeBaseInputSchema) as any,
+  inputSchema: askKnowledgeBaseSchema,
 };
 
 // Define the static tool for sending custom notifications
+const sendNotificationSchema = zodToJsonSchema(SendNotificationInputSchema) as any;
+sendNotificationSchema.examples = [{
+  message: "Deployment completed successfully",
+  severity: "SUCCESS"
+}, {
+  title: "Alert",
+  message: "High CPU usage detected",
+  severity: "WARNING",
+  email: true
+}];
+
 export const sendNotificationStaticTool: Tool = {
   name: "pluggedin_send_notification",
   description: "Send custom notifications through the Plugged.in system with optional email delivery. You can provide a custom title or let the system use a localized default.",
-  inputSchema: zodToJsonSchema(SendNotificationInputSchema) as any,
+  inputSchema: sendNotificationSchema,
 };
 
 // Define the static tool for listing notifications
@@ -98,17 +116,40 @@ export const listDocumentsStaticTool: Tool = {
 };
 
 // Define the static tool for searching documents
+const searchDocumentsSchema = zodToJsonSchema(SearchDocumentsInputSchema) as any;
+searchDocumentsSchema.examples = [{
+  query: "API documentation",
+  limit: 10
+}, {
+  query: "authentication guide",
+  filters: {
+    tags: ["tutorial", "security"],
+    source: "ai_generated"
+  },
+  limit: 5
+}];
+
 export const searchDocumentsStaticTool: Tool = {
   name: "pluggedin_search_documents",
   description: "Search for specific documents in your library. Returns document metadata (ID, title, snippet). To retrieve full content, use pluggedin_get_document with the returned document ID.",
-  inputSchema: zodToJsonSchema(SearchDocumentsInputSchema) as any,
+  inputSchema: searchDocumentsSchema,
 };
 
 // Define the static tool for getting a document
+const getDocumentSchema = zodToJsonSchema(GetDocumentInputSchema) as any;
+getDocumentSchema.examples = [{
+  documentId: "550e8400-e29b-41d4-a716-446655440000",
+  includeContent: true
+}, {
+  documentId: "123e4567-e89b-12d3-a456-426614174000",
+  includeContent: true,
+  includeVersions: true
+}];
+
 export const getDocumentStaticTool: Tool = {
   name: "pluggedin_get_document",
   description: "Retrieve a specific document's full content by ID. Use this after pluggedin_search_documents to get the complete content of documents you found. Set includeContent=true to get the full text.",
-  inputSchema: zodToJsonSchema(GetDocumentInputSchema) as any,
+  inputSchema: getDocumentSchema,
 };
 
 // Define the static tool for updating a document
