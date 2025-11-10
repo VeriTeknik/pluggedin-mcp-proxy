@@ -1,8 +1,32 @@
-# MCP Protocol Compliance - Phase 4 Complete ✅
+# MCP Protocol Compliance - Phase 5 Complete ✅
 
 This document summarizes the protocol compliance improvements made to pluggedin-mcp to ensure 100% adherence to the MCP specification.
 
-## Changes Made
+## Latest Updates (v1.11.1)
+
+### Protocol Version Support Enhanced
+**Date**: 2025-11-10
+**Issue**: Smithery Cloud deployment failing due to protocol version mismatch
+
+The server now supports multiple MCP protocol versions for backward compatibility:
+- **Supported versions**: `2024-11-05`, `2025-06-18`
+- **Latest version**: `2025-06-18` (sent in response headers)
+- **Behavior**: Accepts requests with either protocol version, always responds with latest
+
+**Changes Made**:
+1. Added `SUPPORTED_MCP_PROTOCOL_VERSIONS` constant array (src/constants.ts)
+2. Updated `versionMiddleware` to validate against array instead of single version (src/middleware.ts)
+3. Updated Docker HEALTHCHECK for better container readiness detection (Dockerfile)
+4. Added test coverage for protocol version `2025-06-18` (tests/streamable-http.test.ts)
+
+**Impact**:
+- ✅ Smithery Cloud scanner can now successfully connect (uses protocol version `2025-06-18`)
+- ✅ Backward compatibility maintained for clients using `2024-11-05`
+- ✅ Health checks ensure container is fully initialized before accepting traffic
+
+---
+
+## Changes Made (Previous Phases)
 
 ### 1. CORS Headers (Lines 30-36)
 

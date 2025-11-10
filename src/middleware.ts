@@ -16,6 +16,7 @@ import { randomUUID, timingSafeEqual } from 'crypto';
 import { debugLog } from './debug-log.js';
 import {
   MCP_PROTOCOL_VERSION,
+  SUPPORTED_MCP_PROTOCOL_VERSIONS,
   MCP_SESSION_ID_HEADER,
   MCP_PROTOCOL_VERSION_HEADER,
   JSON_RPC_ERROR_CODES,
@@ -59,25 +60,26 @@ export const corsMiddleware: RequestHandler = (req: any, res: any, next: any) =>
 /**
  * Protocol version validation middleware
  * Validates and sets MCP protocol version headers
+ * Supports multiple protocol versions for backward compatibility
  */
 export const versionMiddleware: RequestHandler = (req: any, res: any, next: any) => {
   // Only validate on MCP endpoint requests
   if ((req.path === '/mcp' || req.path === '/') && req.method === 'POST') {
     const version = req.headers['mcp-protocol-version'];
 
-    // Protocol version is optional but if provided, validate it
-    if (version && version !== MCP_PROTOCOL_VERSION) {
+    // Protocol version is optional but if provided, validate it against supported versions
+    if (version && !SUPPORTED_MCP_PROTOCOL_VERSIONS.includes(version as any)) {
       return res.status(400).json({
         jsonrpc: '2.0',
         error: {
           code: JSON_RPC_ERROR_CODES.INVALID_REQUEST,
-          message: `Unsupported MCP protocol version: ${version}. Supported: ${MCP_PROTOCOL_VERSION}`
+          message: `Unsupported MCP protocol version: ${version}. Supported: ${SUPPORTED_MCP_PROTOCOL_VERSIONS.join(', ')}`
         },
         id: null
       });
     }
 
-    // Always send our protocol version in response
+    // Always send latest protocol version in response to indicate server capabilities
     res.setHeader(MCP_PROTOCOL_VERSION_HEADER, MCP_PROTOCOL_VERSION);
   }
   next();

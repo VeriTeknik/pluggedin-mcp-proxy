@@ -187,6 +187,26 @@ If connections are timing out:
 2. **API Availability**: Verify the Plugged.in instance is accessible
 3. **Rate Limiting**: Check if you're hitting rate limits
 
+### Protocol Version Errors (Fixed in v1.11.1)
+
+If Smithery scanner fails with protocol version errors:
+
+**Issue**: Scanner uses MCP protocol version `2025-06-18`, but older versions only supported `2024-11-05`
+
+**Solution**: Upgrade to v1.11.1 or later, which supports both protocol versions:
+```bash
+# Pull latest version
+docker pull ghcr.io/veriteknik/pluggedin-mcp:v1.11.1
+
+# Or update your Smithery deployment to use the latest tag
+```
+
+**Supported Versions**:
+- ✅ `2024-11-05` (backward compatibility)
+- ✅ `2025-06-18` (Smithery scanner)
+
+The server automatically accepts both versions and responds with the latest version (`2025-06-18`) in headers.
+
 ## See Also
 
 - [Smithery Documentation](https://smithery.ai/docs)

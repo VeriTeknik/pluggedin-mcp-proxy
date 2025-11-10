@@ -632,7 +632,7 @@ describe('Streamable HTTP Transport', () => {
         expect(response.status).not.toBe(400);
       });
 
-      it('should accept valid protocol version', async () => {
+      it('should accept valid protocol version (2024-11-05)', async () => {
         const port = 3025;
 
         (StreamableHTTPServerTransport as any).mockImplementation(() => ({
@@ -647,6 +647,26 @@ describe('Streamable HTTP Transport', () => {
         const response = await request(`http://localhost:${port}`)
           .post('/mcp')
           .set('Mcp-Protocol-Version', '2024-11-05')
+          .send({ jsonrpc: '2.0', method: 'initialize', params: {} });
+
+        expect(response.status).not.toBe(400);
+      });
+
+      it('should accept valid protocol version (2025-06-18)', async () => {
+        const port = 3029;
+
+        (StreamableHTTPServerTransport as any).mockImplementation(() => ({
+          handleRequest: vi.fn((req, res) => {
+            res.json({ jsonrpc: '2.0', result: 'success' });
+          }),
+          close: vi.fn()
+        }));
+
+        cleanup = await startStreamableHTTPServer(mockServer, { port });
+
+        const response = await request(`http://localhost:${port}`)
+          .post('/mcp')
+          .set('Mcp-Protocol-Version', '2025-06-18')
           .send({ jsonrpc: '2.0', method: 'initialize', params: {} });
 
         expect(response.status).not.toBe(400);
@@ -682,7 +702,7 @@ describe('Streamable HTTP Transport', () => {
           .post('/mcp')
           .send({ jsonrpc: '2.0', method: 'initialize', params: {} });
 
-        expect(response.headers['mcp-protocol-version']).toBe('2024-11-05');
+        expect(response.headers['mcp-protocol-version']).toBe('2025-06-18');
       });
 
       it('should always respond with Mcp-Protocol-Version header casing', async () => {
@@ -711,7 +731,8 @@ describe('Streamable HTTP Transport', () => {
             .send({ jsonrpc: '2.0', method: 'initialize', params: {} });
 
           // Check that the response header is set (supertest lowercases all headers)
-          expect(response.headers['mcp-protocol-version']).toBe('2024-11-05');
+          // Response always sends latest protocol version (2025-06-18)
+          expect(response.headers['mcp-protocol-version']).toBe('2025-06-18');
         }
       });
     });
