@@ -35,6 +35,9 @@ COPY smithery.yaml ./
 # Copy .well-known directory for Smithery discovery
 COPY .well-known ./.well-known
 
+# Copy healthcheck script
+COPY scripts/healthcheck.js ./scripts/
+
 # Set environment variables
 ENV NODE_ENV=production
 ENV PORT=8081
@@ -48,9 +51,9 @@ EXPOSE 8081
 # Checks /health endpoint every 10 seconds with 3 second timeout
 # Allows 30 seconds for initial startup before first check
 HEALTHCHECK --interval=10s --timeout=3s --start-period=30s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:' + (process.env.PORT || 8081) + '/health', (r) => { let data = ''; r.on('data', (d) => data += d); r.on('end', () => { try { const j = JSON.parse(data); process.exit(j.status === 'ok' ? 0 : 1); } catch { process.exit(1); } }); }).on('error', () => process.exit(1));"
+  CMD node scripts/healthcheck.js
 
 # Run the application in Streamable HTTP mode
-# Use explicit port 8081 to match ENV PORT and EXPOSE directives
-# Remove shell variable expansion to avoid potential issues
-CMD ["node", "dist/index.js", "--transport", "streamable-http", "--port", "8081"]
+# Uses PORT environment variable (defaults to 8081 if not set)
+# Allows flexibility for custom port configuration in different deployment scenarios
+CMD sh -c "node dist/index.js --transport streamable-http --port ${PORT:-8081}"
