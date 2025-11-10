@@ -30,7 +30,7 @@ export const MCP_PROTOCOL_VERSION_HEADER = 'Mcp-Protocol-Version';
  */
 export const MIN_PORT = 1;
 export const MAX_PORT = 65535;
-export const DEFAULT_PORT = 12006;
+export const DEFAULT_PORT = 8081; // Match Smithery/Docker port expectations
 
 /**
  * Session management constants
