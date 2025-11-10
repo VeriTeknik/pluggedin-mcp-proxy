@@ -38,6 +38,8 @@ COPY .well-known ./.well-known
 # Set environment variables
 ENV NODE_ENV=production
 ENV PORT=8081
+# Bind to 0.0.0.0 to allow external connections in Docker/Cloud environments
+ENV BIND_HOST=0.0.0.0
 
 # Expose Smithery's expected port (8081)
 EXPOSE 8081
