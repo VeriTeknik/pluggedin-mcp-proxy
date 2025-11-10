@@ -436,6 +436,169 @@ export const createServer = async () => {
      }
   });
 
+  // List Resources Handler - Returns available resources from the knowledge base
+  server.setRequestHandler(ListResourcesRequestSchema, async () => {
+    const apiKey = getPluggedinMCPApiKey();
+    const baseUrl = getPluggedinMCPApiBaseUrl();
+
+    // If no API key, return only setup resource
+    if (!apiKey || !baseUrl) {
+      return {
+        resources: [{
+          uri: "pluggedin://setup",
+          mimeType: "text/markdown",
+          name: "Plugged.in Setup Guide",
+          description: "Getting started with Plugged.in MCP - setup instructions and API key configuration"
+        }]
+      };
+    }
+
+    // Return available resources from knowledge base
+    return {
+      resources: [
+        {
+          uri: "pluggedin://documents",
+          mimeType: "application/json",
+          name: "Document Library",
+          description: "Access to your Plugged.in document library with RAG capabilities"
+        },
+        {
+          uri: "pluggedin://notifications",
+          mimeType: "application/json",
+          name: "Notifications",
+          description: "Your Plugged.in notifications and activity feed"
+        },
+        {
+          uri: "pluggedin://mcp-servers",
+          mimeType: "application/json",
+          name: "MCP Servers",
+          description: "Your configured MCP servers and their capabilities"
+        }
+      ]
+    };
+  });
+
+  // Read Resource Handler - Returns content of a specific resource
+  server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
+    const { uri } = request.params;
+
+    if (uri === "pluggedin://setup") {
+      return {
+        contents: [{
+          uri,
+          mimeType: "text/markdown",
+          text: `# Getting Started with Plugged.in MCP
+
+## Quick Setup
+
+1. **Get Your API Key**
+   - Visit https://plugged.in/api-keys
+   - Create a new API key
+   - Copy the key (it won't be shown again)
+
+2. **Configure Environment**
+   Set the following environment variables:
+   \`\`\`bash
+   export PLUGGEDIN_API_KEY="your-api-key-here"
+   export PLUGGEDIN_API_BASE_URL="https://plugged.in"  # Optional, defaults to this
+   \`\`\`
+
+3. **Verify Connection**
+   Use the \`pluggedin_discover_tools\` tool to verify your setup and discover available MCP servers.
+
+## Available Features
+
+- **Document Library**: Store and search AI-generated documents with RAG capabilities
+- **Notifications**: Send and manage notifications
+- **MCP Server Hub**: Aggregate multiple MCP servers into one connection
+- **Knowledge Base**: Ask questions across your document library
+
+## Need Help?
+
+- Documentation: https://github.com/VeriTeknik/pluggedin-mcp
+- Issues: https://github.com/VeriTeknik/pluggedin-mcp/issues
+`
+        }]
+      };
+    }
+
+    if (uri === "pluggedin://documents") {
+      const apiKey = getPluggedinMCPApiKey();
+      const baseUrl = getPluggedinMCPApiBaseUrl();
+
+      if (!apiKey || !baseUrl) {
+        throw new Error("API key required to access document library");
+      }
+
+      // Return document library information
+      return {
+        contents: [{
+          uri,
+          mimeType: "application/json",
+          text: JSON.stringify({
+            message: "Use pluggedin_list_documents or pluggedin_search_documents tools to access your document library",
+            available_tools: [
+              "pluggedin_list_documents",
+              "pluggedin_search_documents",
+              "pluggedin_get_document",
+              "pluggedin_create_document",
+              "pluggedin_update_document"
+            ]
+          }, null, 2)
+        }]
+      };
+    }
+
+    if (uri === "pluggedin://notifications") {
+      const apiKey = getPluggedinMCPApiKey();
+      const baseUrl = getPluggedinMCPApiBaseUrl();
+
+      if (!apiKey || !baseUrl) {
+        throw new Error("API key required to access notifications");
+      }
+
+      return {
+        contents: [{
+          uri,
+          mimeType: "application/json",
+          text: JSON.stringify({
+            message: "Use notification tools to access your activity feed",
+            available_tools: [
+              "pluggedin_list_notifications",
+              "pluggedin_send_notification",
+              "pluggedin_mark_notification_done",
+              "pluggedin_delete_notification"
+            ]
+          }, null, 2)
+        }]
+      };
+    }
+
+    if (uri === "pluggedin://mcp-servers") {
+      const apiKey = getPluggedinMCPApiKey();
+      const baseUrl = getPluggedinMCPApiBaseUrl();
+
+      if (!apiKey || !baseUrl) {
+        throw new Error("API key required to access MCP servers");
+      }
+
+      return {
+        contents: [{
+          uri,
+          mimeType: "application/json",
+          text: JSON.stringify({
+            message: "Use pluggedin_discover_tools to discover available MCP servers and their capabilities",
+            available_tools: [
+              "pluggedin_discover_tools"
+            ]
+          }, null, 2)
+        }]
+      };
+    }
+
+    throw new Error(`Resource not found: ${uri}`);
+  });
+
   // Call Tool Handler - Routes tool calls to the appropriate downstream server
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const { name: requestedToolName, arguments: args } = request.params;
