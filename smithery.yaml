@@ -10,10 +10,10 @@ build:
   dockerBuildPath: "."
 
 # Start command configuration
+# Note: Smithery expects the MCP server to be available at the root path (/)
+# Health checks are handled via Docker HEALTHCHECK directive in Dockerfile
 startCommand:
   type: "http"
-  endpoint: "/mcp"
-  health: "/health"
   configSchema:
     type: object
     properties:
