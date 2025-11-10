@@ -5,6 +5,7 @@
   <h3>The Crossroads for AI Data Exchanges</h3>
   <p>A unified MCP hub that gives your AI <strong>Knowledge</strong>, <strong>Memory</strong>, and <strong>Tools</strong> — not just a proxy. Manage and test all MCP servers from a single connection while powering document-aware and memory-augmented workflows across clients.</p>
 
+  [![smithery badge](https://smithery.ai/badge/@VeriTeknik/pluggedin-mcp)](https://smithery.ai/server/@VeriTeknik/pluggedin-mcp)
   [![Version](https://img.shields.io/badge/version-1.9.0-blue?style=for-the-badge)](https://github.com/VeriTeknik/pluggedin-mcp/releases)
   [![GitHub Stars](https://img.shields.io/github/stars/VeriTeknik/pluggedin-mcp?style=for-the-badge)](https://github.com/VeriTeknik/pluggedin-mcp/stargazers)
   [![License](https://img.shields.io/github/license/VeriTeknik/pluggedin-mcp?style=for-the-badge)](LICENSE)
@@ -24,7 +25,7 @@ This proxy enables seamless integration with any MCP client (Claude, Cline, Curs
 Search and ground model outputs with unified, attribution‑aware document retrieval. MCP servers can create and manage documents in your library with versioning, visibility controls, and model attribution. Use the built‑in RAG to search across all connected sources and return relevant snippets and metadata.
 
 **Memory (Persistent AI Memory)**  
-Long‑lived, workspace/profile‑scoped memory that survives sessions. The hub integrates with the plugged.in App’s persistent memory so agent actions and insights can be stored and recalled across tasks. Built‑in memory tools are on the roadmap to expose low‑friction `get/put/search` patterns under the same auth model.
+Long‑lived, workspace/profile‑scoped memory that survives sessions. The hub integrates with the plugged.in App's persistent memory so agent actions and insights can be stored and recalled across tasks. Built‑in memory tools are on the roadmap to expose low‑friction `get/put/search` patterns under the same auth model.
 
 **Tools**  
 Aggregate built‑in capabilities with downstream MCP servers (STDIO, SSE, Streamable HTTP). Tool discovery is cached and can be refreshed on demand; hub‑level discovery returns a unified catalog for any MCP client. The hub supports tools, resources, resource templates, and prompts.
