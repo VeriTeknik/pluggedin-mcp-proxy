@@ -54,6 +54,6 @@ HEALTHCHECK --interval=10s --timeout=3s --start-period=30s --retries=3 \
   CMD node scripts/healthcheck.js
 
 # Run the application in Streamable HTTP mode
-# Uses PORT environment variable (defaults to 8081 if not set)
+# Respects PORT environment variable (defaults to 8081 if not set)
 # Allows flexibility for custom port configuration in different deployment scenarios
-CMD sh -c "node dist/index.js --transport streamable-http --port ${PORT:-8081}"
+CMD ["node", "dist/index.js", "--transport", "streamable-http"]
