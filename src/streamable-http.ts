@@ -1,11 +1,110 @@
+/**
+ * Streamable HTTP Server Transport for MCP Proxy
+ *
+ * MCP Protocol Compliance:
+ * - Headers use Title-Case per MCP spec (Mcp-Session-Id, Mcp-Protocol-Version)
+ * - CORS headers expose custom headers to clients
+ * - Protocol version validation (2024-11-05)
+ * - JSON-RPC 2.0 compliant error codes
+ *
+ * JSON-RPC Error Codes Used:
+ * - -32600: Invalid Request (malformed request, unsupported protocol version)
+ * - -32601: Method not found (HTTP method not allowed)
+ * - -32603: Internal error (server-side exception)
+ * - -32001: Server error - Unauthorized (auth failure)
+ * - -32000: Server error - Generic application error (session not found, etc.)
+ */
+
 import express from 'express';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
-import { randomUUID } from 'crypto';
 import { debugLog, debugError } from './debug-log.js';
+import {
+  MCP_SESSION_ID_HEADER,
+  JSON_RPC_ERROR_CODES,
+  SESSION_TTL_MS,
+  SESSION_CLEANUP_INTERVAL_MS,
+  MAX_SESSIONS,
+} from './constants.js';
+import {
+  corsMiddleware,
+  versionMiddleware,
+  acceptMiddleware,
+  createAuthMiddleware,
+  createWellKnownHandler,
+  resolveTransport,
+} from './middleware.js';
 
-// Map to store active transports by session ID (for stateful mode)
-const transports = new Map<string, StreamableHTTPServerTransport>();
+// Session metadata interface
+interface SessionMetadata {
+  transport: StreamableHTTPServerTransport;
+  lastAccess: number;
+}
+
+// Map to store active sessions with metadata (for stateful mode)
+const sessions = new Map<string, SessionMetadata>();
+
+/**
+ * Clean up expired sessions based on TTL
+ * @returns Number of sessions cleaned up
+ */
+function cleanupExpiredSessions(): number {
+  const now = Date.now();
+  let cleanedCount = 0;
+
+  for (const [sessionId, metadata] of sessions.entries()) {
+    if (now - metadata.lastAccess > SESSION_TTL_MS) {
+      try {
+        metadata.transport.close().catch(error => {
+          debugError(`Error closing expired session ${sessionId}:`, error);
+        });
+      } catch (error) {
+        debugError(`Error closing expired session ${sessionId}:`, error);
+      }
+      sessions.delete(sessionId);
+      cleanedCount++;
+    }
+  }
+
+  if (cleanedCount > 0) {
+    debugLog(`Cleaned up ${cleanedCount} expired sessions`);
+  }
+
+  return cleanedCount;
+}
+
+/**
+ * Evict oldest session when max sessions limit is reached (LRU eviction)
+ */
+function evictOldestSession(): void {
+  if (sessions.size === 0) return;
+
+  let oldestSessionId: string | null = null;
+  let oldestAccessTime = Infinity;
+
+  // Find session with oldest access time
+  for (const [sessionId, metadata] of sessions.entries()) {
+    if (metadata.lastAccess < oldestAccessTime) {
+      oldestAccessTime = metadata.lastAccess;
+      oldestSessionId = sessionId;
+    }
+  }
+
+  if (oldestSessionId) {
+    const metadata = sessions.get(oldestSessionId);
+    if (metadata) {
+      try {
+        metadata.transport.close().catch(error => {
+          debugError(`Error closing evicted session ${oldestSessionId}:`, error);
+        });
+      } catch (error) {
+        debugError(`Error closing evicted session ${oldestSessionId}:`, error);
+      }
+      sessions.delete(oldestSessionId);
+      debugLog(`Evicted oldest session ${oldestSessionId} (LRU eviction)`);
+    }
+  }
+}
 
 export interface StreamableHTTPOptions {
   port: number;
@@ -24,93 +123,30 @@ export async function startStreamableHTTPServer(
   options: StreamableHTTPOptions
 ): Promise<() => Promise<void>> {
   const app = express();
-  const { port, requireApiAuth, stateless } = options;
+  const { port, requireApiAuth = false, stateless = false } = options;
+
+  // Apply middleware in order: CORS, version validation, accept normalization
+  app.use(corsMiddleware);
+  app.use(versionMiddleware);
+  app.use(acceptMiddleware);
+
+  // Serve static files from .well-known directory (for Smithery discovery)
+  // This must come AFTER CORS but BEFORE authentication
+  const wellKnownHandler = createWellKnownHandler();
+  app.use('/.well-known', wellKnownHandler);
+  app.use('/mcp/.well-known', wellKnownHandler);
 
   // Middleware to parse JSON bodies
   app.use(express.json());
 
-  // Combined middleware for CORS and authentication
-  const setupMiddleware = (req: any, res: any, next: any) => {
-    // CORS headers
-    res.header('Access-Control-Allow-Origin', '*');
-    res.header('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, mcp-session-id');
-    
-    if (req.method === 'OPTIONS') {
-      return res.sendStatus(200);
-    }
+  // Authentication middleware - only for MCP endpoint
+  app.use(createAuthMiddleware(requireApiAuth));
 
-    // Lazy authentication - only check for tool invocations
-    if (req.path === '/mcp' && requireApiAuth && req.method === 'POST') {
-      // Parse the request body to check if it's a tool invocation
-      const body = req.body;
-      if (body && typeof body === 'object') {
-        const method = body.method;
-        // Only require auth for tool/resource calls, not for capability discovery
-        const requiresAuth = method && (
-          method.startsWith('tools/') || 
-          method.startsWith('resources/') ||
-          method === 'tools/call' ||
-          method === 'resources/read'
-        );
-        
-        if (requiresAuth) {
-          const authHeader = req.headers.authorization;
-          const apiKey = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
-          
-          if (!apiKey || apiKey !== process.env.PLUGGEDIN_API_KEY) {
-            return res.status(401).json({
-              jsonrpc: '2.0',
-              error: {
-                code: -32000,
-                message: 'Unauthorized: Invalid or missing API key'
-              },
-              id: body.id || null
-            });
-          }
-        }
-      }
-    }
-    
-    next();
-  };
-
-  // Apply middleware to all routes
-  app.use(setupMiddleware);
-
-  // MCP endpoint handler
-  app.all('/mcp', async (req: any, res: any) => {
+  // Shared MCP handler used for both /mcp and / routes
+  const mcpHandler = async (req: any, res: any) => {
     try {
-      let transport: StreamableHTTPServerTransport;
-      let sessionId: string | undefined;
-
-      if (stateless) {
-        // Create a new transport for each request in stateless mode
-        transport = new StreamableHTTPServerTransport({
-          sessionIdGenerator: undefined // Disable session management in stateless mode
-        });
-        await server.connect(transport);
-      } else {
-        // Use session-based transport management
-        sessionId = req.headers['mcp-session-id'] as string || randomUUID();
-        
-        if (!transports.has(sessionId)) {
-          // Create a new transport for this session
-          transport = new StreamableHTTPServerTransport({
-            sessionIdGenerator: () => sessionId!,
-            onsessioninitialized: (id) => {
-              debugLog(`Session initialized: ${id}`);
-            }
-          });
-          transports.set(sessionId, transport);
-          await server.connect(transport);
-          
-          // Set session ID in response header
-          res.setHeader('mcp-session-id', sessionId);
-        } else {
-          transport = transports.get(sessionId)!;
-        }
-      }
+      const transport = await resolveTransport(req, res, server, stateless, sessions);
+      const sessionId = stateless ? undefined : (req.headers['mcp-session-id'] as string);
 
       // Handle different HTTP methods
       switch (req.method) {
@@ -128,34 +164,27 @@ export async function startStreamableHTTPServer(
           
         case 'DELETE':
           // Handle session termination
-          if (!stateless && sessionId && transports.has(sessionId)) {
-            const transport = transports.get(sessionId)!;
-            await transport.close();
-            transports.delete(sessionId);
-            res.status(200).json({ success: true, message: 'Session terminated' });
-          } else if (!stateless && sessionId && !transports.has(sessionId)) {
-            // Session ID provided but doesn't exist - return success as nothing to delete
-            res.status(200).json({ success: true, message: 'Session not found' });
-          } else if (stateless) {
+          if (stateless) {
             // In stateless mode, always return success
             res.status(200).json({ success: true, message: 'Stateless mode - no session to terminate' });
+          } else if (sessionId && sessions.has(sessionId)) {
+            // Session exists, delete it
+            const metadata = sessions.get(sessionId)!;
+            await metadata.transport.close();
+            sessions.delete(sessionId);
+            res.status(200).json({ success: true, message: 'Session terminated' });
           } else {
-            res.status(404).json({
-              jsonrpc: '2.0',
-              error: {
-                code: -32000,
-                message: 'Session not found'
-              }
-            });
+            // Session ID not provided or doesn't exist - return success as nothing to delete
+            res.status(200).json({ success: true, message: 'Session not found' });
           }
           break;
-          
+
         default:
           res.status(405).json({
             jsonrpc: '2.0',
             error: {
-              code: -32000,
-              message: `Method ${req.method} not allowed`
+              code: JSON_RPC_ERROR_CODES.METHOD_NOT_FOUND,
+              message: `HTTP method ${req.method} not allowed`
             }
           });
       }
@@ -169,22 +198,41 @@ export async function startStreamableHTTPServer(
       res.status(500).json({
         jsonrpc: '2.0',
         error: {
-          code: -32603,
+          code: JSON_RPC_ERROR_CODES.INTERNAL_ERROR,
           message: 'Internal server error',
-          data: error instanceof Error ? error.message : String(error)
+          // Only expose error details in development to prevent information disclosure
+          ...(process.env.NODE_ENV === 'development' && {
+            data: error instanceof Error ? error.message : String(error)
+          })
         }
       });
     }
-  });
+  };
+
+  // MCP endpoint handler (preferred path)
+  app.all('/mcp', mcpHandler);
+
+  // Fallback root path handler for clients that POST to base URL
+  app.all('/', mcpHandler);
 
   // Health check endpoint
   app.get('/health', (_req: any, res: any) => {
-    res.json({ 
-      status: 'ok', 
+    res.json({
+      status: 'ok',
       transport: 'streamable-http',
-      sessions: stateless ? 0 : transports.size 
+      sessions: stateless ? 0 : sessions.size,
+      maxSessions: stateless ? 0 : MAX_SESSIONS
     });
   });
+
+  // Set up periodic session cleanup (only in stateful mode)
+  let cleanupInterval: NodeJS.Timeout | null = null;
+  if (!stateless) {
+    cleanupInterval = setInterval(() => {
+      cleanupExpiredSessions();
+    }, SESSION_CLEANUP_INTERVAL_MS);
+    debugLog(`Session cleanup interval started (every ${SESSION_CLEANUP_INTERVAL_MS / 1000}s)`);
+  }
 
   // Start the Express server
   const httpServer = app.listen(port, () => {
@@ -201,15 +249,21 @@ export async function startStreamableHTTPServer(
 
   // Return cleanup function
   return async () => {
-    // Close all active transports
-    for (const [sessionId, transport] of transports) {
+    // Clear cleanup interval
+    if (cleanupInterval) {
+      clearInterval(cleanupInterval);
+      debugLog('Session cleanup interval stopped');
+    }
+
+    // Close all active sessions
+    for (const [sessionId, metadata] of sessions) {
       try {
-        await transport.close();
+        await metadata.transport.close();
       } catch (error) {
         debugError(`Error closing transport for session ${sessionId}:`, error);
       }
     }
-    transports.clear();
+    sessions.clear();
 
     // Close the HTTP server
     return new Promise((resolve) => {

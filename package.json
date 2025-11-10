@@ -31,7 +31,7 @@
   },
   "homepage": "https://github.com/VeriTeknik/pluggedin-mcp#readme",
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.20.2",
+    "@modelcontextprotocol/sdk": "^1.21.1",
     "axios": "^1.12.2",
     "commander": "^14.0.2",
     "express": "^5.1.0",
@@ -64,8 +64,10 @@
     "smithery.yaml"
   ],
   "main": "dist/index.js",
+  "module": "src/server.ts",
   "exports": {
     ".": "./dist/index.js",
+    "./server": "./dist/server.js",
     "./dist/report-tools.js": "./dist/report-tools.js"
   },
   "keywords": [

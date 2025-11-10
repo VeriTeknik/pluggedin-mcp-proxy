@@ -1,21 +1,37 @@
+# Smithery Cloud Deployment Configuration
+# Container-based deployment with custom Dockerfile
+# See: https://smithery.ai/docs/build/deployments/custom-container
+
+runtime: "container"
+
+# Build configuration
+build:
+  dockerfile: "Dockerfile"
+  dockerBuildPath: "."
+
+# Start command configuration
 startCommand:
-  type: stdio
+  type: "http"
+  endpoint: "/mcp"
+  health: "/health"
   configSchema:
     type: object
     properties:
       PLUGGEDIN_API_KEY:
         type: string
-        description: Your Plugged.in API key for authenticated operations (see plugged.in/api-keys). Leave empty for tool discovery only.
+        description: "Your Plugged.in API key for authenticated operations (get one at plugged.in/api-keys). Leave empty for tool discovery only."
       PLUGGEDIN_API_BASE_URL:
         type: string
-        description: Base URL for your Plugged.in instance (optional, defaults to https://plugged.in)
-  commandFunction: |
-    (config) => ({
-      command: 'node',
-      args: ['dist/index.js'],
-      env: {
-        ...process.env,
-        ...(config.PLUGGEDIN_API_KEY && { PLUGGEDIN_API_KEY: config.PLUGGEDIN_API_KEY }),
-        ...(config.PLUGGEDIN_API_BASE_URL && { PLUGGEDIN_API_BASE_URL: config.PLUGGEDIN_API_BASE_URL })
-      }
-    })
+        description: "Base URL for your Plugged.in instance (optional, defaults to https://plugged.in)"
+        default: "https://plugged.in"
+      REQUIRE_API_AUTH:
+        type: string
+        description: "Require API key authentication for HTTP requests (true/false)"
+        enum: ["true", "false"]
+        default: "false"
+
+# Metadata
+name: "Plugged.in MCP Hub"
+description: "A unified MCP hub that gives your AI Knowledge, Memory, and Tools — not just a proxy. Aggregate all MCP servers (STDIO, SSE, Streamable HTTP) into one connection while powering document-aware (RAG v2) and memory-augmented workflows across any client."
+homepage: "https://github.com/VeriTeknik/pluggedin-mcp"
+repository: "https://github.com/VeriTeknik/pluggedin-mcp"

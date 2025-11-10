@@ -32,11 +32,16 @@ COPY --from=builder /app/dist ./dist
 # Copy required config files
 COPY smithery.yaml ./
 
+# Copy .well-known directory for Smithery discovery
+COPY .well-known ./.well-known
+
 # Set environment variables
 ENV NODE_ENV=production
+ENV PORT=8081
 
-# Expose the application port
-EXPOSE 3000
+# Expose Smithery's expected port (8081)
+EXPOSE 8081
 
-# Run the application
-ENTRYPOINT ["node", "dist/index.js"]
+# Run the application in Streamable HTTP mode
+# Smithery sets PORT environment variable, we use it here
+CMD ["sh", "-c", "node dist/index.js --transport streamable-http --port ${PORT}"]

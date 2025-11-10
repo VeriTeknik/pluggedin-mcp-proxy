@@ -1,0 +1,31 @@
+{
+  "startCommand": {
+    "type": "http",
+    "endpoint": "/mcp",
+    "health": "/health"
+  },
+  "transport": "streamable-http",
+  "endpoint": "/mcp",
+  "sseEndpoint": "/mcp",
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "PLUGGEDIN_API_KEY": {
+        "type": "string",
+        "description": "Your Plugged.in API key for authenticated operations (get one at plugged.in/api-keys). Leave empty for tool discovery only."
+      },
+      "PLUGGEDIN_API_BASE_URL": {
+        "type": "string",
+        "description": "Base URL for your Plugged.in instance (optional, defaults to https://plugged.in)",
+        "default": "https://plugged.in"
+      },
+      "REQUIRE_API_AUTH": {
+        "type": "string",
+        "description": "Require API key authentication for HTTP requests (true/false, defaults to false)",
+        "default": "false",
+        "enum": ["true", "false"]
+      }
+    },
+    "required": []
+  }
+}
