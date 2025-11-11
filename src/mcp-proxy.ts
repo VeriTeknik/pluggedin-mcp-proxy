@@ -62,6 +62,7 @@ import {
 import { debugLog, debugError } from "./debug-log.js";
 import { withErrorHandling } from "./error-handler.js";
 import {
+  setupStaticTool,
   createDocumentStaticTool,
   listDocumentsStaticTool,
   searchDocumentsStaticTool,
@@ -134,6 +135,11 @@ const discoverToolsStaticTool: Tool = {
     name: "pluggedin_discover_tools",
     description: "Triggers discovery of tools (and resources/templates) for configured MCP servers in the Pluggedin App.",
     inputSchema: zodToJsonSchema(DiscoverToolsInputSchema) as any,
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: false
+    }
 };
 
 // Define the schema for asking questions to the knowledge base
@@ -149,6 +155,11 @@ const askKnowledgeBaseStaticTool: Tool = {
     name: "pluggedin_ask_knowledge_base",
     description: "Ask questions and get AI-generated answers from your knowledge base. Returns structured JSON with answer, document sources, and metadata.",
     inputSchema: zodToJsonSchema(AskKnowledgeBaseInputSchema) as any,
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: false
+    }
 };
 
 // Define the static tool for sending custom notifications
@@ -179,6 +190,11 @@ const sendNotificationStaticTool: Tool = {
       }
     },
     required: ["message"]
+  },
+  annotations: {
+    readOnlyHint: false,
+    destructiveHint: false,
+    idempotentHint: false
   }
 };
 
@@ -209,6 +225,11 @@ const listNotificationsStaticTool: Tool = {
         maximum: 100
       }
     }
+  },
+  annotations: {
+    readOnlyHint: true,
+    destructiveHint: false,
+    idempotentHint: true
   }
 };
 
@@ -231,6 +252,11 @@ const markNotificationDoneStaticTool: Tool = {
       }
     },
     required: ["notificationId"]
+  },
+  annotations: {
+    readOnlyHint: false,
+    destructiveHint: false,
+    idempotentHint: true
   }
 };
 
@@ -252,6 +278,11 @@ const deleteNotificationStaticTool: Tool = {
       }
     },
     required: ["notificationId"]
+  },
+  annotations: {
+    readOnlyHint: false,
+    destructiveHint: true,
+    idempotentHint: true
   }
 };
 
@@ -292,20 +323,26 @@ export const createServer = async () => {
      const apiKey = getPluggedinMCPApiKey();
      const baseUrl = getPluggedinMCPApiBaseUrl();
      
-     // If no API key, return only static tools (for Smithery compatibility)
+     // If no API key, return all static tools (for Smithery compatibility)
      // This path should be fast and not rate limited for tool discovery
      if (!apiKey || !baseUrl) {
        // Don't log to console for STDIO transport as it interferes with protocol
-       return { 
+       return {
          tools: [
-           discoverToolsStaticTool, 
-           askKnowledgeBaseStaticTool, 
+           setupStaticTool,
+           discoverToolsStaticTool,
+           askKnowledgeBaseStaticTool,
+           createDocumentStaticTool,
+           listDocumentsStaticTool,
+           searchDocumentsStaticTool,
+           getDocumentStaticTool,
+           updateDocumentStaticTool,
            sendNotificationStaticTool,
            listNotificationsStaticTool,
            markNotificationDoneStaticTool,
            deleteNotificationStaticTool
-         ], 
-         nextCursor: undefined 
+         ],
+         nextCursor: undefined
        };
      }
      
