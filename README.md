@@ -11,6 +11,8 @@
   [![License](https://img.shields.io/github/license/VeriTeknik/pluggedin-mcp?style=for-the-badge)](LICENSE)
   [![TypeScript](https://img.shields.io/badge/TypeScript-4.9+-blue?style=for-the-badge&logo=typescript)](https://www.typescriptlang.org/)
   [![MCP](https://img.shields.io/badge/MCP-Compatible-green?style=for-the-badge)](https://modelcontextprotocol.io/)
+  </br>
+  [![Trust Score](https://archestra.ai/mcp-catalog/api/badge/quality/VeriTeknik/pluggedin-mcp-proxy)](https://archestra.ai/mcp-catalog/veriteknik__pluggedin-mcp-proxy)
 </div>
 
 ## 📋 Overview
