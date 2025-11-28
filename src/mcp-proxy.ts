@@ -73,7 +73,8 @@ import {
   clipboardDeleteStaticTool,
   clipboardListStaticTool,
   clipboardPushStaticTool,
-  clipboardPopStaticTool
+  clipboardPopStaticTool,
+  STATIC_TOOLS_COUNT
 } from "./tools/static-tools.js";
 import { StaticToolHandlers } from "./handlers/static-handlers.js";
 import { formatCustomInstructionsForDiscovery } from "./utils/custom-instructions.js";
@@ -597,7 +598,7 @@ export const createServer = async () => {
 
                     if (totalItems > 0) {
                         // We have existing data, return it without running discovery
-                        const staticToolsCount = 17; // Discovery, RAG, Notifications (3), Documents (5), Clipboard (7)
+                        const staticToolsCount = STATIC_TOOLS_COUNT;
                         const totalToolsCount = toolsCount + staticToolsCount;
                         existingDataSummary = `Found cached data: ${toolsCount} dynamic tools + ${staticToolsCount} static tools = ${totalToolsCount} total tools, ${resourcesCount} resources, ${promptsCount} prompts, ${templatesCount} templates`;
 

@@ -109,9 +109,22 @@ The proxy provides two distinct categories of tools:
 ### 🔧 Static Built-in Tools (Always Available)
 These tools are built into the proxy and work without any server configuration:
 - **`pluggedin_discover_tools`** - Smart discovery with caching for instant results
-- **`pluggedin_rag_query`** - RAG v2 search across your documents with AI filtering capabilities
+- **`pluggedin_ask_knowledge_base`** - RAG search across your documents with AI filtering capabilities
 - **`pluggedin_send_notification`** - Send notifications with optional email delivery
-- **`pluggedin_create_document`** - (Coming Soon) Create AI-generated documents in your library
+- **`pluggedin_create_document`** - Create AI-generated documents in your library
+- **`pluggedin_list_documents`** - List documents with filtering options
+- **`pluggedin_search_documents`** - Search for specific documents by query
+- **`pluggedin_get_document`** - Retrieve a specific document's full content by ID
+- **`pluggedin_update_document`** - Update or append to an existing document
+
+#### 📋 Clipboard Tools (Memory System)
+
+- **`pluggedin_clipboard_set`** - Set a clipboard entry by name (semantic key) or index
+- **`pluggedin_clipboard_get`** - Get clipboard entries by name, index, or list all
+- **`pluggedin_clipboard_delete`** - Delete clipboard entries by name, index, or clear all
+- **`pluggedin_clipboard_list`** - List all clipboard entries with metadata
+- **`pluggedin_clipboard_push`** - Push a value with auto-incrementing index (stack push)
+- **`pluggedin_clipboard_pop`** - Pop the highest-indexed entry (LIFO behavior)
 
 ### ⚡ Dynamic MCP Tools (From Connected Servers)
 These tools come from your configured MCP servers and can be turned on/off:
@@ -147,6 +160,47 @@ pluggedin_discover_tools({"server_uuid": "uuid-here"})
 1. **query** - Run read-only SQL queries
 2. **generate_random_integer** - Generate secure random integers
 ...
+```
+
+### 📋 Clipboard Usage Examples
+
+The clipboard system provides persistent memory for AI workflows:
+
+```bash
+# Store a named entry (upserts if exists)
+pluggedin_clipboard_set({
+  "name": "customer_context",
+  "value": "{\"name\": \"John Doe\", \"account_id\": \"12345\"}",
+  "contentType": "application/json"
+})
+
+# Store an indexed entry for ordered pipelines
+pluggedin_clipboard_set({
+  "idx": 0,
+  "value": "First pipeline step result",
+  "createdByTool": "data_processor"
+})
+
+# Push to stack (auto-incrementing index)
+pluggedin_clipboard_push({
+  "value": "Analysis result from step 1",
+  "contentType": "text/plain"
+})
+
+# Get a specific entry by name
+pluggedin_clipboard_get({"name": "customer_context"})
+
+# Pop from stack (LIFO - returns and removes highest index)
+pluggedin_clipboard_pop()
+
+# List all entries with metadata
+pluggedin_clipboard_list({"limit": 20})
+
+# Delete specific entry
+pluggedin_clipboard_delete({"name": "customer_context"})
+
+# Clear all clipboard entries
+pluggedin_clipboard_delete({"clearAll": true})
 ```
 
 ### 📚 RAG v2 Usage Examples

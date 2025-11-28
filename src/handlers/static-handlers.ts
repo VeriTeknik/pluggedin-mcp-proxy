@@ -1559,7 +1559,7 @@ Set environment variables in your terminal before launching the editor.
       const deleted = response.data.deleted || 0;
       const responseText = validatedArgs.clearAll
         ? `Cleared all clipboard entries (${deleted} removed)`
-        : `Deleted ${deleted} clipboard entry`;
+        : `Deleted ${deleted} clipboard ${deleted === 1 ? 'entry' : 'entries'}`;
 
       return {
         content: [{ type: "text", text: responseText }],

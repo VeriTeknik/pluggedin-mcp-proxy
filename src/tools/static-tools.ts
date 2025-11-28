@@ -349,4 +349,27 @@ export const clipboardPopStaticTool: Tool = {
   }
 };
 
-// Note: staticTools array removed - individual tools are imported directly where needed
+// Array of all static tools for counting and iteration
+export const allStaticTools: Tool[] = [
+  setupStaticTool,
+  discoverToolsStaticTool,
+  askKnowledgeBaseStaticTool,
+  sendNotificationStaticTool,
+  listNotificationsStaticTool,
+  markNotificationDoneStaticTool,
+  deleteNotificationStaticTool,
+  createDocumentStaticTool,
+  listDocumentsStaticTool,
+  searchDocumentsStaticTool,
+  getDocumentStaticTool,
+  updateDocumentStaticTool,
+  clipboardSetStaticTool,
+  clipboardGetStaticTool,
+  clipboardDeleteStaticTool,
+  clipboardListStaticTool,
+  clipboardPushStaticTool,
+  clipboardPopStaticTool,
+];
+
+// Export the count for use in mcp-proxy.ts
+export const STATIC_TOOLS_COUNT = allStaticTools.length;
