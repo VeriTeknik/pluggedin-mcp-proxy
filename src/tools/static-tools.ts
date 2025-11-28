@@ -251,7 +251,7 @@ clipboardSetSchema.examples = [{
 
 export const clipboardSetStaticTool: Tool = {
   name: "pluggedin_clipboard_set",
-  description: "Set a clipboard entry by name (semantic key) or index (array-like). Named entries are upserted; indexed entries fail if index exists. Max 256KB per entry.",
+  description: "Set a clipboard entry by name (semantic key) or index (array-like). Named entries are upserted; indexed entries fail if index exists. Max 2MB per entry.",
   inputSchema: clipboardSetSchema,
   annotations: {
     readOnlyHint: false,

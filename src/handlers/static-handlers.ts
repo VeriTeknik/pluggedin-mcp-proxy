@@ -1328,7 +1328,7 @@ Set environment variables in your terminal before launching the editor.
 
   // ===== Clipboard Handlers =====
 
-  async handleClipboardSet(args: any): Promise<ToolExecutionResult> {
+  async handleClipboardSet(args: unknown): Promise<ToolExecutionResult> {
     debugError(`[CallTool Handler] Executing static tool: ${clipboardSetStaticTool.name}`);
     const validatedArgs = ClipboardSetInputSchema.parse(args ?? {});
 
@@ -1377,7 +1377,7 @@ Set environment variables in your terminal before launching the editor.
         isError: false,
       };
 
-    } catch (apiError: any) {
+    } catch (apiError: unknown) {
       logMcpActivity({
         action: 'tool_call',
         serverName: 'Clipboard System',
@@ -1390,17 +1390,33 @@ Set environment variables in your terminal before launching the editor.
 
       let errorMsg = "Failed to set clipboard entry";
       if (axios.isAxiosError(apiError)) {
-        if (apiError.response?.status === 400) {
-          errorMsg = apiError.response.data?.error || "Invalid clipboard data";
-        } else if (apiError.response?.status === 409) {
-          errorMsg = apiError.response.data?.error || "Index already exists";
+        const status = apiError.response?.status;
+        const serverError = apiError.response?.data?.error;
+        switch (status) {
+          case 400:
+            errorMsg = `Invalid clipboard data: ${serverError || 'Check your input parameters'}`;
+            break;
+          case 401:
+            errorMsg = 'Authentication failed. Check your API key.';
+            break;
+          case 409:
+            errorMsg = `Index conflict: ${serverError || 'The specified index already exists. Use a different index or name.'}`;
+            break;
+          case 413:
+            errorMsg = 'Clipboard entry too large. Maximum size is 2MB.';
+            break;
+          case 429:
+            errorMsg = 'Rate limit exceeded. Please try again later.';
+            break;
+          default:
+            errorMsg = `Failed to set clipboard entry: ${serverError || apiError.message}`;
         }
       }
       throw new Error(errorMsg);
     }
   }
 
-  async handleClipboardGet(args: any): Promise<ToolExecutionResult> {
+  async handleClipboardGet(args: unknown): Promise<ToolExecutionResult> {
     debugError(`[CallTool Handler] Executing static tool: ${clipboardGetStaticTool.name}`);
     const validatedArgs = ClipboardGetInputSchema.parse(args ?? {});
 
@@ -1495,7 +1511,7 @@ Set environment variables in your terminal before launching the editor.
         isError: false,
       };
 
-    } catch (apiError: any) {
+    } catch (apiError: unknown) {
       logMcpActivity({
         action: 'tool_call',
         serverName: 'Clipboard System',
@@ -1508,15 +1524,26 @@ Set environment variables in your terminal before launching the editor.
 
       let errorMsg = "Failed to get clipboard entries";
       if (axios.isAxiosError(apiError)) {
-        if (apiError.response?.status === 404) {
-          errorMsg = "Clipboard entry not found";
+        const status = apiError.response?.status;
+        switch (status) {
+          case 401:
+            errorMsg = 'Authentication failed. Check your API key.';
+            break;
+          case 404:
+            errorMsg = "Clipboard entry not found";
+            break;
+          case 429:
+            errorMsg = 'Rate limit exceeded. Please try again later.';
+            break;
+          default:
+            errorMsg = apiError.response?.data?.error || apiError.message;
         }
       }
       throw new Error(errorMsg);
     }
   }
 
-  async handleClipboardDelete(args: any): Promise<ToolExecutionResult> {
+  async handleClipboardDelete(args: unknown): Promise<ToolExecutionResult> {
     debugError(`[CallTool Handler] Executing static tool: ${clipboardDeleteStaticTool.name}`);
     const validatedArgs = ClipboardDeleteInputSchema.parse(args ?? {});
 
@@ -1566,7 +1593,7 @@ Set environment variables in your terminal before launching the editor.
         isError: false,
       };
 
-    } catch (apiError: any) {
+    } catch (apiError: unknown) {
       logMcpActivity({
         action: 'tool_call',
         serverName: 'Clipboard System',
@@ -1579,15 +1606,26 @@ Set environment variables in your terminal before launching the editor.
 
       let errorMsg = "Failed to delete clipboard entry";
       if (axios.isAxiosError(apiError)) {
-        if (apiError.response?.status === 404) {
-          errorMsg = "Clipboard entry not found";
+        const status = apiError.response?.status;
+        switch (status) {
+          case 401:
+            errorMsg = 'Authentication failed. Check your API key.';
+            break;
+          case 404:
+            errorMsg = "Clipboard entry not found";
+            break;
+          case 429:
+            errorMsg = 'Rate limit exceeded. Please try again later.';
+            break;
+          default:
+            errorMsg = apiError.response?.data?.error || apiError.message;
         }
       }
       throw new Error(errorMsg);
     }
   }
 
-  async handleClipboardList(args: any): Promise<ToolExecutionResult> {
+  async handleClipboardList(args: unknown): Promise<ToolExecutionResult> {
     debugError(`[CallTool Handler] Executing static tool: ${clipboardListStaticTool.name}`);
     const validatedArgs = ClipboardListInputSchema.parse(args ?? {});
 
@@ -1635,7 +1673,7 @@ Set environment variables in your terminal before launching the editor.
         isError: false,
       };
 
-    } catch (apiError: any) {
+    } catch (apiError: unknown) {
       logMcpActivity({
         action: 'tool_call',
         serverName: 'Clipboard System',
@@ -1646,11 +1684,25 @@ Set environment variables in your terminal before launching the editor.
         executionTime: timer.stop(),
       }).catch(() => {});
 
-      throw new Error("Failed to list clipboard entries");
+      let errorMsg = "Failed to list clipboard entries";
+      if (axios.isAxiosError(apiError)) {
+        const status = apiError.response?.status;
+        switch (status) {
+          case 401:
+            errorMsg = 'Authentication failed. Check your API key.';
+            break;
+          case 429:
+            errorMsg = 'Rate limit exceeded. Please try again later.';
+            break;
+          default:
+            errorMsg = apiError.response?.data?.error || apiError.message;
+        }
+      }
+      throw new Error(errorMsg);
     }
   }
 
-  async handleClipboardPush(args: any): Promise<ToolExecutionResult> {
+  async handleClipboardPush(args: unknown): Promise<ToolExecutionResult> {
     debugError(`[CallTool Handler] Executing static tool: ${clipboardPushStaticTool.name}`);
     const validatedArgs = ClipboardPushInputSchema.parse(args ?? {});
 
@@ -1698,7 +1750,7 @@ Set environment variables in your terminal before launching the editor.
         isError: false,
       };
 
-    } catch (apiError: any) {
+    } catch (apiError: unknown) {
       logMcpActivity({
         action: 'tool_call',
         serverName: 'Clipboard System',
@@ -1711,15 +1763,30 @@ Set environment variables in your terminal before launching the editor.
 
       let errorMsg = "Failed to push to clipboard";
       if (axios.isAxiosError(apiError)) {
-        if (apiError.response?.status === 400) {
-          errorMsg = apiError.response.data?.error || "Invalid clipboard data";
+        const status = apiError.response?.status;
+        const serverError = apiError.response?.data?.error;
+        switch (status) {
+          case 400:
+            errorMsg = `Invalid clipboard data: ${serverError || 'Check your input parameters'}`;
+            break;
+          case 401:
+            errorMsg = 'Authentication failed. Check your API key.';
+            break;
+          case 413:
+            errorMsg = 'Clipboard entry too large. Maximum size is 2MB.';
+            break;
+          case 429:
+            errorMsg = 'Rate limit exceeded. Please try again later.';
+            break;
+          default:
+            errorMsg = `Failed to push to clipboard: ${serverError || apiError.message}`;
         }
       }
       throw new Error(errorMsg);
     }
   }
 
-  async handleClipboardPop(args: any): Promise<ToolExecutionResult> {
+  async handleClipboardPop(args: unknown): Promise<ToolExecutionResult> {
     debugError(`[CallTool Handler] Executing static tool: ${clipboardPopStaticTool.name}`);
     ClipboardPopInputSchema.parse(args ?? {});
 
@@ -1779,7 +1846,7 @@ Set environment variables in your terminal before launching the editor.
         isError: false,
       };
 
-    } catch (apiError: any) {
+    } catch (apiError: unknown) {
       logMcpActivity({
         action: 'tool_call',
         serverName: 'Clipboard System',
@@ -1792,8 +1859,19 @@ Set environment variables in your terminal before launching the editor.
 
       let errorMsg = "Failed to pop from clipboard";
       if (axios.isAxiosError(apiError)) {
-        if (apiError.response?.status === 404) {
-          errorMsg = "No indexed entries to pop";
+        const status = apiError.response?.status;
+        switch (status) {
+          case 401:
+            errorMsg = 'Authentication failed. Check your API key.';
+            break;
+          case 404:
+            errorMsg = "No indexed entries to pop";
+            break;
+          case 429:
+            errorMsg = 'Rate limit exceeded. Please try again later.';
+            break;
+          default:
+            errorMsg = apiError.response?.data?.error || apiError.message;
         }
       }
       throw new Error(errorMsg);
