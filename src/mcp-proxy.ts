@@ -67,7 +67,13 @@ import {
   listDocumentsStaticTool,
   searchDocumentsStaticTool,
   getDocumentStaticTool,
-  updateDocumentStaticTool
+  updateDocumentStaticTool,
+  clipboardSetStaticTool,
+  clipboardGetStaticTool,
+  clipboardDeleteStaticTool,
+  clipboardListStaticTool,
+  clipboardPushStaticTool,
+  clipboardPopStaticTool
 } from "./tools/static-tools.js";
 import { StaticToolHandlers } from "./handlers/static-handlers.js";
 import { formatCustomInstructionsForDiscovery } from "./utils/custom-instructions.js";
@@ -340,7 +346,13 @@ export const createServer = async () => {
            sendNotificationStaticTool,
            listNotificationsStaticTool,
            markNotificationDoneStaticTool,
-           deleteNotificationStaticTool
+           deleteNotificationStaticTool,
+           clipboardSetStaticTool,
+           clipboardGetStaticTool,
+           clipboardDeleteStaticTool,
+           clipboardListStaticTool,
+           clipboardPushStaticTool,
+           clipboardPopStaticTool
          ],
          nextCursor: undefined
        };
@@ -445,7 +457,7 @@ export const createServer = async () => {
 
        // Always include the static tools
        const allToolsForClient = [
-         discoverToolsStaticTool, 
+         discoverToolsStaticTool,
          askKnowledgeBaseStaticTool,
          createDocumentStaticTool,
          listDocumentsStaticTool,
@@ -456,6 +468,12 @@ export const createServer = async () => {
          listNotificationsStaticTool,
          markNotificationDoneStaticTool,
          deleteNotificationStaticTool,
+         clipboardSetStaticTool,
+         clipboardGetStaticTool,
+         clipboardDeleteStaticTool,
+         clipboardListStaticTool,
+         clipboardPushStaticTool,
+         clipboardPopStaticTool,
          ...toolsForClient
        ];
 
