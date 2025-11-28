@@ -1587,22 +1587,28 @@ export const createServer = async () => {
 
 The Plugged.in MCP Proxy is a powerful gateway that provides access to multiple MCP servers and built-in tools. Here's what you can do:
 
-## 🔧 Built-in Static Tools
+## 🔧 Built-in Static Tools (17 Total)
 
-### 1. **pluggedin_discover_tools**
+### Discovery (1 tool)
+
+#### 1. **pluggedin_discover_tools**
 - **Purpose**: Trigger discovery of tools and resources from configured MCP servers
-- **Parameters**: 
+- **Parameters**:
   - \`server_uuid\` (optional): Discover from specific server, or all servers if omitted
   - \`force_refresh\` (optional): Set to true to trigger background discovery and return immediately (defaults to false)
 - **Usage**: Returns cached data instantly if available. Use \`force_refresh=true\` to update data in background, then call again without force_refresh to see results.
 
-### 2. **pluggedin_ask_knowledge_base**
+### Knowledge Base (1 tool)
+
+#### 2. **pluggedin_ask_knowledge_base**
 - **Purpose**: Perform RAG (Retrieval-Augmented Generation) queries against your documents
 - **Parameters**:
   - \`query\` (required): The search query (1-1000 characters)
 - **Usage**: Search through uploaded documents and knowledge base
 
-### 3. **pluggedin_send_notification**
+### Notifications (4 tools)
+
+#### 3. **pluggedin_send_notification**
 - **Purpose**: Send custom notifications through the Plugged.in system
 - **Parameters**:
   - \`message\` (required): The notification message content
@@ -1611,24 +1617,126 @@ The Plugged.in MCP Proxy is a powerful gateway that provides access to multiple 
   - \`sendEmail\` (optional): Whether to also send via email (defaults to false)
 - **Usage**: Create custom notifications with optional email delivery
 
-### 4. **pluggedin_list_notifications**
+#### 4. **pluggedin_list_notifications**
 - **Purpose**: List notifications from the Plugged.in system
 - **Parameters**:
   - \`onlyUnread\` (optional): Filter to show only unread notifications (defaults to false)
   - \`limit\` (optional): Limit the number of notifications returned (1-100)
 - **Usage**: Retrieve and check your notifications with optional filters
 
-### 5. **pluggedin_mark_notification_done**
+#### 5. **pluggedin_mark_notification_done**
 - **Purpose**: Mark a notification as done
 - **Parameters**:
   - \`notificationId\` (required): The ID of the notification to mark as done
 - **Usage**: Update notification status to done
 
-### 6. **pluggedin_delete_notification**
+#### 6. **pluggedin_delete_notification**
 - **Purpose**: Delete a notification
 - **Parameters**:
   - \`notificationId\` (required): The ID of the notification to delete
 - **Usage**: Remove notifications from your list
+
+### Documents (5 tools)
+
+#### 7. **pluggedin_create_document**
+- **Purpose**: Create AI-generated documents in your library
+- **Parameters**:
+  - \`title\` (required): Document title (1-255 characters)
+  - \`content\` (required): Document content
+  - \`format\` (optional): md, txt, json, or html (defaults to md)
+  - \`tags\` (optional): Tags for categorization (max 20)
+  - \`category\` (optional): report, analysis, documentation, guide, research, code, or other
+  - \`metadata\` (required): AI model info, context, visibility, etc.
+- **Usage**: Save AI-generated content with full attribution and metadata
+
+#### 8. **pluggedin_list_documents**
+- **Purpose**: List documents with filtering and pagination
+- **Parameters**:
+  - \`filters\` (optional): Filter by source, model, dates, tags, category, search query
+  - \`sort\` (optional): date_desc, date_asc, title, or size (defaults to date_desc)
+  - \`limit\` (optional): Maximum documents to return (1-100, default 20)
+  - \`offset\` (optional): Pagination offset (default 0)
+- **Usage**: Browse and filter your document library
+
+#### 9. **pluggedin_search_documents**
+- **Purpose**: Search documents semantically
+- **Parameters**:
+  - \`query\` (required): Search query text (1-500 characters)
+  - \`filters\` (optional): Filter by model, dates, tags, source
+  - \`limit\` (optional): Maximum results (1-50, default 10)
+- **Usage**: Find documents using semantic search
+
+#### 10. **pluggedin_get_document**
+- **Purpose**: Retrieve a specific document by ID
+- **Parameters**:
+  - \`documentId\` (required): Document UUID
+  - \`includeContent\` (optional): Include full content (default false)
+  - \`includeVersions\` (optional): Include version history (default false)
+- **Usage**: Get detailed information about a specific document
+
+#### 11. **pluggedin_update_document**
+- **Purpose**: Update or append to an existing document
+- **Parameters**:
+  - \`documentId\` (required): Document UUID
+  - \`operation\` (required): replace, append, or prepend
+  - \`content\` (required): New content
+  - \`metadata\` (optional): Update metadata (tags, change summary, etc.)
+- **Usage**: Modify existing documents with version tracking
+
+### Clipboard (7 tools)
+
+#### 12. **pluggedin_clipboard_set**
+- **Purpose**: Set a clipboard entry by name or index
+- **Parameters**:
+  - \`name\` (optional): Named key for semantic access (e.g., 'customer_context')
+  - \`idx\` (optional): Numeric index for array-like access (e.g., 0, 1, 2)
+  - \`value\` (required): The content to store
+  - \`contentType\` (optional): MIME type (default 'text/plain')
+  - \`encoding\` (optional): utf-8, base64, or hex (default utf-8)
+  - \`visibility\` (optional): private, workspace, or public (default private)
+  - \`ttlSeconds\` (optional): Time-to-live in seconds (default 24 hours)
+- **Usage**: Store data by name or index. Named entries are upserted; indexed entries fail if index exists.
+
+#### 13. **pluggedin_clipboard_get**
+- **Purpose**: Get clipboard entries with pagination
+- **Parameters**:
+  - \`name\` (optional): Get entry by name
+  - \`idx\` (optional): Get entry by index
+  - \`contentType\` (optional): Filter by content type
+  - \`limit\` (optional): Maximum entries (1-100, default 50)
+  - \`offset\` (optional): Pagination offset (default 0)
+- **Usage**: Without name/idx, lists all entries with pagination
+
+#### 14. **pluggedin_clipboard_delete**
+- **Purpose**: Delete clipboard entries
+- **Parameters**:
+  - \`name\` (optional): Delete entry by name
+  - \`idx\` (optional): Delete entry by index
+  - \`clearAll\` (optional): Delete all entries (default false)
+- **Usage**: Remove entries by name, index, or clear all
+
+#### 15. **pluggedin_clipboard_list**
+- **Purpose**: List all clipboard entries (metadata only)
+- **Parameters**:
+  - \`contentType\` (optional): Filter by content type
+  - \`limit\` (optional): Maximum entries (1-100, default 50)
+  - \`offset\` (optional): Pagination offset (default 0)
+- **Usage**: Get overview of clipboard with truncated values
+
+#### 16. **pluggedin_clipboard_push**
+- **Purpose**: Push to indexed clipboard with auto-incrementing index
+- **Parameters**:
+  - \`value\` (required): The content to push
+  - \`contentType\` (optional): MIME type (default 'text/plain')
+  - \`encoding\` (optional): utf-8, base64, or hex (default utf-8)
+  - \`visibility\` (optional): private, workspace, or public (default private)
+  - \`ttlSeconds\` (optional): Time-to-live in seconds (default 24 hours)
+- **Usage**: Stack-like push operation with automatic indexing
+
+#### 17. **pluggedin_clipboard_pop**
+- **Purpose**: Pop the highest-indexed entry (LIFO behavior)
+- **Parameters**: None
+- **Usage**: Stack-like pop operation, removes and returns the last pushed entry
 
 ## 🔗 Proxy Features
 
@@ -1642,10 +1750,10 @@ The Plugged.in MCP Proxy is a powerful gateway that provides access to multiple 
 - **Profile-based Access**: All operations are scoped to your active profile
 - **Audit Logging**: All MCP activities are logged for monitoring and debugging
 
-### Notification System
-- **Activity Tracking**: Automatic logging of all MCP operations (tools, prompts, resources)
-- **Performance Metrics**: Execution timing for all operations
-- **Custom Notifications**: Send custom notifications with email delivery options
+### Data Management
+- **Document Library**: Full-featured document management with AI attribution and versioning
+- **Clipboard Storage**: Temporary storage for data sharing between tools and sessions
+- **Notification System**: Activity tracking and custom notifications with email delivery
 
 ## 🚀 Getting Started
 
@@ -1653,15 +1761,18 @@ The Plugged.in MCP Proxy is a powerful gateway that provides access to multiple 
 2. **Discover Tools**: Run \`pluggedin_discover_tools\` to see available tools from your servers
 3. **Use Tools**: Call any discovered tool through the proxy
 4. **Query Documents**: Use \`pluggedin_ask_knowledge_base\` to search your knowledge base
-5. **Manage Notifications**: Use notification tools to send, list, mark as read, and delete notifications
+5. **Manage Documents**: Use document tools to create, list, search, get, and update documents
+6. **Use Clipboard**: Store temporary data with clipboard tools for sharing between operations
+7. **Manage Notifications**: Send, list, mark as done, and delete notifications
 
 ## 📊 Monitoring
 
 - Check the Plugged.in app notifications to see MCP activity logs
 - Monitor execution times and success rates
 - View custom notifications in the notification center
+- Track document creation and clipboard usage
 
-The proxy acts as a unified gateway to all your MCP capabilities while providing enhanced features like RAG, notifications, and comprehensive logging.`
+The proxy acts as a unified gateway to all your MCP capabilities while providing enhanced features like RAG, document management, clipboard storage, notifications, and comprehensive logging.`
               }
             }
           ]
