@@ -597,22 +597,41 @@ export const createServer = async () => {
 
                     if (totalItems > 0) {
                         // We have existing data, return it without running discovery
-                        const staticToolsCount = 3; // Always have 3 static tools
+                        const staticToolsCount = 17; // Discovery, RAG, Notifications (3), Documents (5), Clipboard (7)
                         const totalToolsCount = toolsCount + staticToolsCount;
                         existingDataSummary = `Found cached data: ${toolsCount} dynamic tools + ${staticToolsCount} static tools = ${totalToolsCount} total tools, ${resourcesCount} resources, ${promptsCount} prompts, ${templatesCount} templates`;
-                        
-                        const cacheMessage = server_uuid 
+
+                        const cacheMessage = server_uuid
                             ? `Returning cached discovery data for server ${server_uuid}. ${existingDataSummary}. Use force_refresh=true to update.\n\n`
                             : `Returning cached discovery data for all servers. ${existingDataSummary}. Use force_refresh=true to update.\n\n`;
 
                         // Format the actual data for the response
                         let dataContent = cacheMessage;
-                        
+
                         // Add static built-in tools section (always available)
                         dataContent += `## 🔧 Static Built-in Tools (Always Available):\n`;
-                        dataContent += `1. **pluggedin_discover_tools** - Triggers discovery of tools (and resources/templates) for configured MCP servers in the Pluggedin App\n`;
-                        dataContent += `2. **pluggedin_ask_knowledge_base** - Performs a RAG query against documents in the Pluggedin App\n`;
-                        dataContent += `3. **pluggedin_send_notification** - Send custom notifications through the Plugged.in system with optional email delivery\n`;
+                        dataContent += `**Discovery (1):**\n`;
+                        dataContent += `1. **pluggedin_discover_tools** - Triggers discovery of tools for configured MCP servers\n`;
+                        dataContent += `\n**Knowledge Base (1):**\n`;
+                        dataContent += `2. **pluggedin_ask_knowledge_base** - Performs a RAG query against documents\n`;
+                        dataContent += `\n**Notifications (3):**\n`;
+                        dataContent += `3. **pluggedin_send_notification** - Send custom notifications with optional email\n`;
+                        dataContent += `4. **pluggedin_list_notifications** - List notifications with filters\n`;
+                        dataContent += `5. **pluggedin_mark_notification_done** - Mark a notification as done\n`;
+                        dataContent += `6. **pluggedin_delete_notification** - Delete a notification\n`;
+                        dataContent += `\n**Documents (5):**\n`;
+                        dataContent += `7. **pluggedin_create_document** - Create AI-generated documents\n`;
+                        dataContent += `8. **pluggedin_list_documents** - List documents with filtering\n`;
+                        dataContent += `9. **pluggedin_search_documents** - Search documents semantically\n`;
+                        dataContent += `10. **pluggedin_get_document** - Retrieve a specific document by ID\n`;
+                        dataContent += `11. **pluggedin_update_document** - Update or append to a document\n`;
+                        dataContent += `\n**Clipboard (7):**\n`;
+                        dataContent += `12. **pluggedin_clipboard_set** - Set a clipboard entry by name or index\n`;
+                        dataContent += `13. **pluggedin_clipboard_get** - Get clipboard entries with pagination\n`;
+                        dataContent += `14. **pluggedin_clipboard_delete** - Delete clipboard entries\n`;
+                        dataContent += `15. **pluggedin_clipboard_list** - List all clipboard entries (metadata only)\n`;
+                        dataContent += `16. **pluggedin_clipboard_push** - Push to indexed clipboard (auto-increment)\n`;
+                        dataContent += `17. **pluggedin_clipboard_pop** - Pop highest-indexed entry (LIFO)\n`;
                         dataContent += `\n`;
                         
                         // Add dynamic tools section (from MCP servers)
@@ -700,16 +719,18 @@ export const createServer = async () => {
                     }
                 } catch (cacheError: unknown) {
                     // Error checking cache, show static tools and proceed with discovery
-                    
+
                     // Show static tools even when cache check fails
-                    const staticToolsCount = 3;
+                    const staticToolsCount = 17;
                     const cacheErrorMessage = `Cache check failed, showing static tools. Will run discovery for dynamic tools.\n\n`;
-                    
+
                     let staticContent = cacheErrorMessage;
-                    staticContent += `## 🔧 Static Built-in Tools (Always Available):\n`;
-                    staticContent += `1. **pluggedin_discover_tools** - Triggers discovery of tools (and resources/templates) for configured MCP servers in the Pluggedin App\n`;
-                    staticContent += `2. **pluggedin_ask_knowledge_base** - Performs a RAG query against documents in the Pluggedin App\n`;
-                    staticContent += `3. **pluggedin_send_notification** - Send custom notifications through the Plugged.in system with optional email delivery\n`;
+                    staticContent += `## 🔧 Static Built-in Tools (Always Available - 17 total):\n`;
+                    staticContent += `**Discovery (1):** pluggedin_discover_tools\n`;
+                    staticContent += `**Knowledge Base (1):** pluggedin_ask_knowledge_base\n`;
+                    staticContent += `**Notifications (4):** pluggedin_send_notification, pluggedin_list_notifications, pluggedin_mark_notification_done, pluggedin_delete_notification\n`;
+                    staticContent += `**Documents (5):** pluggedin_create_document, pluggedin_list_documents, pluggedin_search_documents, pluggedin_get_document, pluggedin_update_document\n`;
+                    staticContent += `**Clipboard (7):** pluggedin_clipboard_set, pluggedin_clipboard_get, pluggedin_clipboard_delete, pluggedin_clipboard_list, pluggedin_clipboard_push, pluggedin_clipboard_pop\n`;
                     staticContent += `\n## ⚡ Dynamic MCP Tools - From Connected Servers:\n`;
                     staticContent += `Cache check failed. Running discovery to find dynamic tools...\n\n`;
                     staticContent += `Note: You can call pluggedin_discover_tools again to see the updated results.`;
@@ -780,20 +801,39 @@ export const createServer = async () => {
                             const promptsCount = Array.isArray(promptsResponse.data) ? promptsResponse.data.length : 0;
                             const templatesCount = Array.isArray(templatesResponse.data) ? templatesResponse.data.length : 0;
 
-                            const staticToolsCount = 3;
+                            const staticToolsCount = 17; // Discovery, RAG, Notifications (4), Documents (5), Clipboard (7)
                             const totalToolsCount = toolsCount + staticToolsCount;
-                            
-                            const refreshMessage = server_uuid 
+
+                            const refreshMessage = server_uuid
                                 ? `🔄 Force refresh initiated for server ${server_uuid}. Discovery is running in background.\n\nShowing current cached data (${toolsCount} dynamic tools + ${staticToolsCount} static tools = ${totalToolsCount} total tools, ${resourcesCount} resources, ${promptsCount} prompts, ${templatesCount} templates):\n\n`
                                 : `🔄 Force refresh initiated for all servers. Discovery is running in background.\n\nShowing current cached data (${toolsCount} dynamic tools + ${staticToolsCount} static tools = ${totalToolsCount} total tools, ${resourcesCount} resources, ${promptsCount} prompts, ${templatesCount} templates):\n\n`;
 
                             forceRefreshContent = refreshMessage;
-                            
+
                             // Add static built-in tools section (always available)
                             forceRefreshContent += `## 🔧 Static Built-in Tools (Always Available):\n`;
-                            forceRefreshContent += `1. **pluggedin_discover_tools** - Triggers discovery of tools (and resources/templates) for configured MCP servers in the Pluggedin App\n`;
-                            forceRefreshContent += `2. **pluggedin_ask_knowledge_base** - Performs a RAG query against documents in the Pluggedin App\n`;
-                            forceRefreshContent += `3. **pluggedin_send_notification** - Send custom notifications through the Plugged.in system with optional email delivery\n`;
+                            forceRefreshContent += `**Discovery (1):**\n`;
+                            forceRefreshContent += `1. **pluggedin_discover_tools** - Triggers discovery of tools for configured MCP servers\n`;
+                            forceRefreshContent += `\n**Knowledge Base (1):**\n`;
+                            forceRefreshContent += `2. **pluggedin_ask_knowledge_base** - Performs a RAG query against documents\n`;
+                            forceRefreshContent += `\n**Notifications (4):**\n`;
+                            forceRefreshContent += `3. **pluggedin_send_notification** - Send custom notifications with optional email\n`;
+                            forceRefreshContent += `4. **pluggedin_list_notifications** - List notifications with filters\n`;
+                            forceRefreshContent += `5. **pluggedin_mark_notification_done** - Mark a notification as done\n`;
+                            forceRefreshContent += `6. **pluggedin_delete_notification** - Delete a notification\n`;
+                            forceRefreshContent += `\n**Documents (5):**\n`;
+                            forceRefreshContent += `7. **pluggedin_create_document** - Create AI-generated documents\n`;
+                            forceRefreshContent += `8. **pluggedin_list_documents** - List documents with filtering\n`;
+                            forceRefreshContent += `9. **pluggedin_search_documents** - Search documents semantically\n`;
+                            forceRefreshContent += `10. **pluggedin_get_document** - Retrieve a specific document by ID\n`;
+                            forceRefreshContent += `11. **pluggedin_update_document** - Update or append to a document\n`;
+                            forceRefreshContent += `\n**Clipboard (7):**\n`;
+                            forceRefreshContent += `12. **pluggedin_clipboard_set** - Set a clipboard entry by name or index\n`;
+                            forceRefreshContent += `13. **pluggedin_clipboard_get** - Get clipboard entries with pagination\n`;
+                            forceRefreshContent += `14. **pluggedin_clipboard_delete** - Delete clipboard entries\n`;
+                            forceRefreshContent += `15. **pluggedin_clipboard_list** - List all clipboard entries (metadata only)\n`;
+                            forceRefreshContent += `16. **pluggedin_clipboard_push** - Push to indexed clipboard (auto-increment)\n`;
+                            forceRefreshContent += `17. **pluggedin_clipboard_pop** - Pop highest-indexed entry (LIFO)\n`;
                             forceRefreshContent += `\n`;
                             
                             // Add dynamic tools section (from MCP servers)
