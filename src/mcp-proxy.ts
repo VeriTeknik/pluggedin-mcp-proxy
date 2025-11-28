@@ -1396,17 +1396,25 @@ export const createServer = async () => {
             }
         }
 
-        // Handle document tools using StaticToolHandlers
+        // Handle static tools (documents and clipboard) using StaticToolHandlers
         const staticHandlers = new StaticToolHandlers(toolToServerMap, instructionToServerMap);
-        const documentTools = [
+        const staticTools = [
+            // Document tools
             createDocumentStaticTool.name,
             listDocumentsStaticTool.name,
             searchDocumentsStaticTool.name,
             getDocumentStaticTool.name,
-            updateDocumentStaticTool.name
+            updateDocumentStaticTool.name,
+            // Clipboard tools
+            clipboardSetStaticTool.name,
+            clipboardGetStaticTool.name,
+            clipboardDeleteStaticTool.name,
+            clipboardListStaticTool.name,
+            clipboardPushStaticTool.name,
+            clipboardPopStaticTool.name
         ];
-        
-        if (documentTools.includes(requestedToolName)) {
+
+        if (staticTools.includes(requestedToolName)) {
             const result = await staticHandlers.handleStaticTool(requestedToolName, args);
             if (result) {
                 return result;
