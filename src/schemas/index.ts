@@ -216,6 +216,29 @@ export const UpdateDocumentInputSchema = z.object({
 
 // ===== Clipboard Schemas =====
 
+// MIME type regex pattern for validation (prevents injection of special characters)
+const MIME_TYPE_REGEX = /^[\w.-]+\/[\w.+-]+$/;
+
+/**
+ * ClipboardEntry interface for type-safe response handling
+ * Used to eliminate `any` types in response processing
+ */
+export interface ClipboardEntry {
+  uuid: string;
+  name: string | null;
+  idx: number | null;
+  value: string;
+  contentType: string;
+  encoding: string;
+  sizeBytes: number;
+  visibility: string;
+  createdByTool: string | null;
+  createdByModel: string | null;
+  createdAt: string;
+  updatedAt: string;
+  expiresAt: string | null;
+}
+
 // Schema for setting a clipboard entry (named or indexed)
 export const ClipboardSetInputSchema = z.object({
   name: z.string().max(255).optional()
@@ -224,7 +247,10 @@ export const ClipboardSetInputSchema = z.object({
     .describe("Numeric index for array-like access (e.g., 0, 1, 2)"),
   value: z.string()
     .describe("The content to store"),
-  contentType: z.string().max(256).default("text/plain")
+  contentType: z.string()
+    .regex(MIME_TYPE_REGEX, "Invalid MIME type format")
+    .max(256)
+    .default("text/plain")
     .describe("MIME type (e.g., 'text/plain', 'application/json', 'image/png')"),
   encoding: z.enum(["utf-8", "base64", "hex"]).default("utf-8")
     .describe("Content encoding: utf-8 (default), base64 (for binary), or hex"),
@@ -234,10 +260,18 @@ export const ClipboardSetInputSchema = z.object({
     .describe("Name of the tool that created this entry"),
   createdByModel: z.string().max(255).optional()
     .describe("Name of the AI model that created this entry"),
-  ttlSeconds: z.number().int().positive().optional()
-    .describe("Time-to-live in seconds (default: 24 hours)"),
+  ttlSeconds: z.number().int().positive().max(31536000).optional()
+    .describe("Time-to-live in seconds (max: 1 year, default: 24 hours)"),
 }).refine((data) => data.name !== undefined || data.idx !== undefined, {
   message: "Either name or idx must be provided",
+}).refine((data) => {
+  // Image content types require base64 encoding
+  if (data.contentType?.startsWith('image/') && data.encoding !== 'base64') {
+    return false;
+  }
+  return true;
+}, {
+  message: "Image content types require base64 encoding",
 }).describe("Set a clipboard entry. Named entries are upserted; indexed entries fail if index exists.");
 
 // Schema for getting clipboard entries
@@ -280,7 +314,10 @@ export const ClipboardListInputSchema = z.object({
 export const ClipboardPushInputSchema = z.object({
   value: z.string()
     .describe("The content to push"),
-  contentType: z.string().max(256).default("text/plain")
+  contentType: z.string()
+    .regex(MIME_TYPE_REGEX, "Invalid MIME type format")
+    .max(256)
+    .default("text/plain")
     .describe("MIME type (e.g., 'text/plain', 'application/json', 'image/png')"),
   encoding: z.enum(["utf-8", "base64", "hex"]).default("utf-8")
     .describe("Content encoding: utf-8 (default), base64 (for binary), or hex"),
@@ -290,8 +327,16 @@ export const ClipboardPushInputSchema = z.object({
     .describe("Name of the tool that created this entry"),
   createdByModel: z.string().max(255).optional()
     .describe("Name of the AI model that created this entry"),
-  ttlSeconds: z.number().int().positive().optional()
-    .describe("Time-to-live in seconds (default: 24 hours)"),
+  ttlSeconds: z.number().int().positive().max(31536000).optional()
+    .describe("Time-to-live in seconds (max: 1 year, default: 24 hours)"),
+}).refine((data) => {
+  // Image content types require base64 encoding
+  if (data.contentType?.startsWith('image/') && data.encoding !== 'base64') {
+    return false;
+  }
+  return true;
+}, {
+  message: "Image content types require base64 encoding",
 }).describe("Push a value to the indexed clipboard with auto-incrementing index.");
 
 // Schema for popping from indexed clipboard (LIFO)

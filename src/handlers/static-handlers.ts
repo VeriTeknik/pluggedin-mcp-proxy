@@ -26,7 +26,8 @@ import {
   ClipboardDeleteInputSchema,
   ClipboardListInputSchema,
   ClipboardPushInputSchema,
-  ClipboardPopInputSchema
+  ClipboardPopInputSchema,
+  ClipboardEntry
 } from '../schemas/index.js';
 import { getMcpServers } from "../fetch-pluggedinmcp.js";
 import { 
@@ -1490,7 +1491,7 @@ Set environment variables in your terminal before launching the editor.
 
       let responseText = `Found ${total} clipboard entries (showing ${entries.length}):\n\n`;
 
-      entries.forEach((entry: any, index: number) => {
+      entries.forEach((entry: ClipboardEntry, index: number) => {
         const identifier = entry.name ? `name="${entry.name}"` : `idx=${entry.idx}`;
         responseText += `${index + 1}. ${identifier}\n`;
         responseText += `   Type: ${entry.contentType}\n`;

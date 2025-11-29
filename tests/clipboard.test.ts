@@ -366,12 +366,20 @@ describe('Clipboard Content Types', () => {
     });
   });
 
-  it('should accept image content types', () => {
+  it('should accept image content types with base64 encoding', () => {
     const types = ['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/svg+xml'];
     types.forEach(type => {
-      const result = ClipboardSetInputSchema.parse({ name: 'test', value: 'v', contentType: type });
+      const result = ClipboardSetInputSchema.parse({ name: 'test', value: 'v', contentType: type, encoding: 'base64' });
       expect(result.contentType).toBe(type);
+      expect(result.encoding).toBe('base64');
     });
+  });
+
+  it('should reject image content types without base64 encoding', () => {
+    expect(() => ClipboardSetInputSchema.parse({ name: 'test', value: 'v', contentType: 'image/png' }))
+      .toThrow('Image content types require base64 encoding');
+    expect(() => ClipboardSetInputSchema.parse({ name: 'test', value: 'v', contentType: 'image/jpeg', encoding: 'utf-8' }))
+      .toThrow('Image content types require base64 encoding');
   });
 });
 
@@ -445,8 +453,53 @@ describe('Clipboard TTL', () => {
     expect(() => ClipboardSetInputSchema.parse({ name: 'test', value: 'v', ttlSeconds: -100 })).toThrow();
   });
 
-  it('should accept very large ttlSeconds', () => {
-    const result = ClipboardSetInputSchema.parse({ name: 'test', value: 'v', ttlSeconds: 86400 * 365 });
-    expect(result.ttlSeconds).toBe(86400 * 365);
+  it('should accept ttlSeconds up to 1 year (max)', () => {
+    const oneYear = 31536000; // 365 days in seconds
+    const result = ClipboardSetInputSchema.parse({ name: 'test', value: 'v', ttlSeconds: oneYear });
+    expect(result.ttlSeconds).toBe(oneYear);
+  });
+
+  it('should reject ttlSeconds exceeding 1 year', () => {
+    const overOneYear = 31536001; // 1 second over the limit
+    expect(() => ClipboardSetInputSchema.parse({ name: 'test', value: 'v', ttlSeconds: overOneYear })).toThrow();
+  });
+});
+
+describe('Clipboard Content Type Validation', () => {
+  it('should accept valid MIME types', () => {
+    const validTypes = [
+      'text/plain',
+      'application/json',
+      'application/xml',
+      'image/png',
+      'audio/mpeg',
+      'video/mp4',
+      'application/octet-stream',
+      'text/html',
+      'application/x-www-form-urlencoded'
+    ];
+    validTypes.forEach(type => {
+      // Non-image types don't require base64
+      if (!type.startsWith('image/')) {
+        const result = ClipboardSetInputSchema.parse({ name: 'test', value: 'v', contentType: type });
+        expect(result.contentType).toBe(type);
+      }
+    });
+  });
+
+  it('should reject invalid MIME type formats', () => {
+    const invalidTypes = [
+      'invalid',           // No slash
+      '/json',             // Missing type
+      'application/',      // Missing subtype
+      'app lication/json', // Space in type
+      'application/js on', // Space in subtype
+      '<script>',          // XSS attempt
+      'text/plain; charset=utf-8 DROP TABLE', // Injection attempt
+    ];
+    invalidTypes.forEach(type => {
+      expect(() => ClipboardSetInputSchema.parse({ name: 'test', value: 'v', contentType: type }))
+        .toThrow('Invalid MIME type format');
+    });
   });
 });
