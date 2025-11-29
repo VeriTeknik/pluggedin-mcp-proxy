@@ -27,7 +27,8 @@ import {
   ClipboardListInputSchema,
   ClipboardPushInputSchema,
   ClipboardPopInputSchema,
-  ClipboardEntry
+  ClipboardEntry,
+  MCP_CLIPBOARD_SOURCE
 } from '../schemas/index.js';
 import { getMcpServers } from "../fetch-pluggedinmcp.js";
 import { 
@@ -1353,7 +1354,7 @@ Set environment variables in your terminal before launching the editor.
         clipboardApiUrl,
         {
           ...validatedArgs,
-          source: 'mcp', // Hardcoded: MCP proxy always uses 'mcp' source
+          source: MCP_CLIPBOARD_SOURCE,
         },
         {
           headers: {
@@ -1730,7 +1731,7 @@ Set environment variables in your terminal before launching the editor.
         clipboardApiUrl,
         {
           ...validatedArgs,
-          source: 'mcp', // Hardcoded: MCP proxy always uses 'mcp' source
+          source: MCP_CLIPBOARD_SOURCE,
         },
         {
           headers: {
