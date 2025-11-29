@@ -11,7 +11,13 @@ import {
   ListDocumentsInputSchema,
   SearchDocumentsInputSchema,
   GetDocumentInputSchema,
-  UpdateDocumentInputSchema
+  UpdateDocumentInputSchema,
+  ClipboardSetInputSchema,
+  ClipboardGetInputSchema,
+  ClipboardDeleteInputSchema,
+  ClipboardListInputSchema,
+  ClipboardPushInputSchema,
+  ClipboardPopInputSchema
 } from '../schemas/index.js';
 
 // Define the setup tool that works without API key
@@ -229,4 +235,141 @@ export const updateDocumentStaticTool: Tool = {
   }
 };
 
-// Note: staticTools array removed - individual tools are imported directly where needed
+// ===== Clipboard Tools =====
+
+// Define the static tool for setting clipboard entries
+const clipboardSetSchema = zodToJsonSchema(ClipboardSetInputSchema) as any;
+clipboardSetSchema.examples = [{
+  name: "customer_context",
+  value: '{"name": "John Doe", "account_id": "12345"}',
+  contentType: "application/json"
+}, {
+  idx: 0,
+  value: "First pipeline step result",
+  createdByTool: "data_processor"
+}];
+
+export const clipboardSetStaticTool: Tool = {
+  name: "pluggedin_clipboard_set",
+  description: "Set a clipboard entry by name (semantic key) or index (array-like). Named entries are upserted; indexed entries fail if index exists. Max 2MB per entry.",
+  inputSchema: clipboardSetSchema,
+  annotations: {
+    readOnlyHint: false,
+    destructiveHint: false,
+    idempotentHint: false
+  }
+};
+
+// Define the static tool for getting clipboard entries
+const clipboardGetSchema = zodToJsonSchema(ClipboardGetInputSchema) as any;
+clipboardGetSchema.examples = [{
+  name: "customer_context"
+}, {
+  idx: 0
+}, {
+  limit: 10,
+  offset: 0
+}];
+
+export const clipboardGetStaticTool: Tool = {
+  name: "pluggedin_clipboard_get",
+  description: "Get clipboard entries. Specify name or idx for a single entry, or omit both to list all entries with pagination.",
+  inputSchema: clipboardGetSchema,
+  annotations: {
+    readOnlyHint: true,
+    destructiveHint: false,
+    idempotentHint: true
+  }
+};
+
+// Define the static tool for deleting clipboard entries
+const clipboardDeleteSchema = zodToJsonSchema(ClipboardDeleteInputSchema) as any;
+clipboardDeleteSchema.examples = [{
+  name: "customer_context"
+}, {
+  idx: 0
+}, {
+  clearAll: true
+}];
+
+export const clipboardDeleteStaticTool: Tool = {
+  name: "pluggedin_clipboard_delete",
+  description: "Delete clipboard entries by name, index, or clear all entries.",
+  inputSchema: clipboardDeleteSchema,
+  annotations: {
+    readOnlyHint: false,
+    destructiveHint: true,
+    idempotentHint: true
+  }
+};
+
+// Define the static tool for listing clipboard entries (metadata only)
+export const clipboardListStaticTool: Tool = {
+  name: "pluggedin_clipboard_list",
+  description: "List all clipboard entries with metadata. Image values are truncated to first 1000 chars for preview.",
+  inputSchema: zodToJsonSchema(ClipboardListInputSchema) as any,
+  annotations: {
+    readOnlyHint: true,
+    destructiveHint: false,
+    idempotentHint: true
+  }
+};
+
+// Define the static tool for pushing to clipboard (auto-increment index)
+const clipboardPushSchema = zodToJsonSchema(ClipboardPushInputSchema) as any;
+clipboardPushSchema.examples = [{
+  value: "Pipeline step 1 result",
+  createdByTool: "data_processor"
+}, {
+  value: "iVBORw0KGgoAAAANS...",
+  contentType: "image/png",
+  encoding: "base64"
+}];
+
+export const clipboardPushStaticTool: Tool = {
+  name: "pluggedin_clipboard_push",
+  description: "Push a value to the indexed clipboard with auto-incrementing index. Useful for building ordered pipelines or stack-like operations.",
+  inputSchema: clipboardPushSchema,
+  annotations: {
+    readOnlyHint: false,
+    destructiveHint: false,
+    idempotentHint: false
+  }
+};
+
+// Define the static tool for popping from clipboard (LIFO)
+export const clipboardPopStaticTool: Tool = {
+  name: "pluggedin_clipboard_pop",
+  description: "Pop the highest-indexed entry from the clipboard (LIFO behavior). Returns the entry value and removes it.",
+  inputSchema: zodToJsonSchema(ClipboardPopInputSchema) as any,
+  annotations: {
+    readOnlyHint: false,
+    destructiveHint: true,
+    idempotentHint: false
+  }
+};
+
+// Array of all static tools for counting and iteration
+export const allStaticTools: Tool[] = [
+  setupStaticTool,
+  discoverToolsStaticTool,
+  askKnowledgeBaseStaticTool,
+  sendNotificationStaticTool,
+  listNotificationsStaticTool,
+  markNotificationDoneStaticTool,
+  deleteNotificationStaticTool,
+  createDocumentStaticTool,
+  listDocumentsStaticTool,
+  searchDocumentsStaticTool,
+  getDocumentStaticTool,
+  updateDocumentStaticTool,
+  clipboardSetStaticTool,
+  clipboardGetStaticTool,
+  clipboardDeleteStaticTool,
+  clipboardListStaticTool,
+  clipboardPushStaticTool,
+  clipboardPopStaticTool,
+];
+
+// Export the count for use in mcp-proxy.ts
+export const STATIC_TOOLS_COUNT = allStaticTools.length;

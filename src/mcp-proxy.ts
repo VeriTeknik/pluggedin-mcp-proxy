@@ -67,7 +67,14 @@ import {
   listDocumentsStaticTool,
   searchDocumentsStaticTool,
   getDocumentStaticTool,
-  updateDocumentStaticTool
+  updateDocumentStaticTool,
+  clipboardSetStaticTool,
+  clipboardGetStaticTool,
+  clipboardDeleteStaticTool,
+  clipboardListStaticTool,
+  clipboardPushStaticTool,
+  clipboardPopStaticTool,
+  STATIC_TOOLS_COUNT
 } from "./tools/static-tools.js";
 import { StaticToolHandlers } from "./handlers/static-handlers.js";
 import { formatCustomInstructionsForDiscovery } from "./utils/custom-instructions.js";
@@ -340,7 +347,13 @@ export const createServer = async () => {
            sendNotificationStaticTool,
            listNotificationsStaticTool,
            markNotificationDoneStaticTool,
-           deleteNotificationStaticTool
+           deleteNotificationStaticTool,
+           clipboardSetStaticTool,
+           clipboardGetStaticTool,
+           clipboardDeleteStaticTool,
+           clipboardListStaticTool,
+           clipboardPushStaticTool,
+           clipboardPopStaticTool
          ],
          nextCursor: undefined
        };
@@ -445,7 +458,7 @@ export const createServer = async () => {
 
        // Always include the static tools
        const allToolsForClient = [
-         discoverToolsStaticTool, 
+         discoverToolsStaticTool,
          askKnowledgeBaseStaticTool,
          createDocumentStaticTool,
          listDocumentsStaticTool,
@@ -456,6 +469,12 @@ export const createServer = async () => {
          listNotificationsStaticTool,
          markNotificationDoneStaticTool,
          deleteNotificationStaticTool,
+         clipboardSetStaticTool,
+         clipboardGetStaticTool,
+         clipboardDeleteStaticTool,
+         clipboardListStaticTool,
+         clipboardPushStaticTool,
+         clipboardPopStaticTool,
          ...toolsForClient
        ];
 
@@ -579,22 +598,41 @@ export const createServer = async () => {
 
                     if (totalItems > 0) {
                         // We have existing data, return it without running discovery
-                        const staticToolsCount = 3; // Always have 3 static tools
+                        const staticToolsCount = STATIC_TOOLS_COUNT;
                         const totalToolsCount = toolsCount + staticToolsCount;
                         existingDataSummary = `Found cached data: ${toolsCount} dynamic tools + ${staticToolsCount} static tools = ${totalToolsCount} total tools, ${resourcesCount} resources, ${promptsCount} prompts, ${templatesCount} templates`;
-                        
-                        const cacheMessage = server_uuid 
+
+                        const cacheMessage = server_uuid
                             ? `Returning cached discovery data for server ${server_uuid}. ${existingDataSummary}. Use force_refresh=true to update.\n\n`
                             : `Returning cached discovery data for all servers. ${existingDataSummary}. Use force_refresh=true to update.\n\n`;
 
                         // Format the actual data for the response
                         let dataContent = cacheMessage;
-                        
+
                         // Add static built-in tools section (always available)
                         dataContent += `## 🔧 Static Built-in Tools (Always Available):\n`;
-                        dataContent += `1. **pluggedin_discover_tools** - Triggers discovery of tools (and resources/templates) for configured MCP servers in the Pluggedin App\n`;
-                        dataContent += `2. **pluggedin_ask_knowledge_base** - Performs a RAG query against documents in the Pluggedin App\n`;
-                        dataContent += `3. **pluggedin_send_notification** - Send custom notifications through the Plugged.in system with optional email delivery\n`;
+                        dataContent += `**Discovery (1):**\n`;
+                        dataContent += `1. **pluggedin_discover_tools** - Triggers discovery of tools for configured MCP servers\n`;
+                        dataContent += `\n**Knowledge Base (1):**\n`;
+                        dataContent += `2. **pluggedin_ask_knowledge_base** - Performs a RAG query against documents\n`;
+                        dataContent += `\n**Notifications (3):**\n`;
+                        dataContent += `3. **pluggedin_send_notification** - Send custom notifications with optional email\n`;
+                        dataContent += `4. **pluggedin_list_notifications** - List notifications with filters\n`;
+                        dataContent += `5. **pluggedin_mark_notification_done** - Mark a notification as done\n`;
+                        dataContent += `6. **pluggedin_delete_notification** - Delete a notification\n`;
+                        dataContent += `\n**Documents (5):**\n`;
+                        dataContent += `7. **pluggedin_create_document** - Create AI-generated documents\n`;
+                        dataContent += `8. **pluggedin_list_documents** - List documents with filtering\n`;
+                        dataContent += `9. **pluggedin_search_documents** - Search documents semantically\n`;
+                        dataContent += `10. **pluggedin_get_document** - Retrieve a specific document by ID\n`;
+                        dataContent += `11. **pluggedin_update_document** - Update or append to a document\n`;
+                        dataContent += `\n**Clipboard (7):**\n`;
+                        dataContent += `12. **pluggedin_clipboard_set** - Set a clipboard entry by name or index\n`;
+                        dataContent += `13. **pluggedin_clipboard_get** - Get clipboard entries with pagination\n`;
+                        dataContent += `14. **pluggedin_clipboard_delete** - Delete clipboard entries\n`;
+                        dataContent += `15. **pluggedin_clipboard_list** - List all clipboard entries (metadata only)\n`;
+                        dataContent += `16. **pluggedin_clipboard_push** - Push to indexed clipboard (auto-increment)\n`;
+                        dataContent += `17. **pluggedin_clipboard_pop** - Pop highest-indexed entry (LIFO)\n`;
                         dataContent += `\n`;
                         
                         // Add dynamic tools section (from MCP servers)
@@ -682,16 +720,18 @@ export const createServer = async () => {
                     }
                 } catch (cacheError: unknown) {
                     // Error checking cache, show static tools and proceed with discovery
-                    
+
                     // Show static tools even when cache check fails
-                    const staticToolsCount = 3;
+                    const staticToolsCount = 17;
                     const cacheErrorMessage = `Cache check failed, showing static tools. Will run discovery for dynamic tools.\n\n`;
-                    
+
                     let staticContent = cacheErrorMessage;
-                    staticContent += `## 🔧 Static Built-in Tools (Always Available):\n`;
-                    staticContent += `1. **pluggedin_discover_tools** - Triggers discovery of tools (and resources/templates) for configured MCP servers in the Pluggedin App\n`;
-                    staticContent += `2. **pluggedin_ask_knowledge_base** - Performs a RAG query against documents in the Pluggedin App\n`;
-                    staticContent += `3. **pluggedin_send_notification** - Send custom notifications through the Plugged.in system with optional email delivery\n`;
+                    staticContent += `## 🔧 Static Built-in Tools (Always Available - 17 total):\n`;
+                    staticContent += `**Discovery (1):** pluggedin_discover_tools\n`;
+                    staticContent += `**Knowledge Base (1):** pluggedin_ask_knowledge_base\n`;
+                    staticContent += `**Notifications (4):** pluggedin_send_notification, pluggedin_list_notifications, pluggedin_mark_notification_done, pluggedin_delete_notification\n`;
+                    staticContent += `**Documents (5):** pluggedin_create_document, pluggedin_list_documents, pluggedin_search_documents, pluggedin_get_document, pluggedin_update_document\n`;
+                    staticContent += `**Clipboard (7):** pluggedin_clipboard_set, pluggedin_clipboard_get, pluggedin_clipboard_delete, pluggedin_clipboard_list, pluggedin_clipboard_push, pluggedin_clipboard_pop\n`;
                     staticContent += `\n## ⚡ Dynamic MCP Tools - From Connected Servers:\n`;
                     staticContent += `Cache check failed. Running discovery to find dynamic tools...\n\n`;
                     staticContent += `Note: You can call pluggedin_discover_tools again to see the updated results.`;
@@ -762,20 +802,39 @@ export const createServer = async () => {
                             const promptsCount = Array.isArray(promptsResponse.data) ? promptsResponse.data.length : 0;
                             const templatesCount = Array.isArray(templatesResponse.data) ? templatesResponse.data.length : 0;
 
-                            const staticToolsCount = 3;
+                            const staticToolsCount = 17; // Discovery, RAG, Notifications (4), Documents (5), Clipboard (7)
                             const totalToolsCount = toolsCount + staticToolsCount;
-                            
-                            const refreshMessage = server_uuid 
+
+                            const refreshMessage = server_uuid
                                 ? `🔄 Force refresh initiated for server ${server_uuid}. Discovery is running in background.\n\nShowing current cached data (${toolsCount} dynamic tools + ${staticToolsCount} static tools = ${totalToolsCount} total tools, ${resourcesCount} resources, ${promptsCount} prompts, ${templatesCount} templates):\n\n`
                                 : `🔄 Force refresh initiated for all servers. Discovery is running in background.\n\nShowing current cached data (${toolsCount} dynamic tools + ${staticToolsCount} static tools = ${totalToolsCount} total tools, ${resourcesCount} resources, ${promptsCount} prompts, ${templatesCount} templates):\n\n`;
 
                             forceRefreshContent = refreshMessage;
-                            
+
                             // Add static built-in tools section (always available)
                             forceRefreshContent += `## 🔧 Static Built-in Tools (Always Available):\n`;
-                            forceRefreshContent += `1. **pluggedin_discover_tools** - Triggers discovery of tools (and resources/templates) for configured MCP servers in the Pluggedin App\n`;
-                            forceRefreshContent += `2. **pluggedin_ask_knowledge_base** - Performs a RAG query against documents in the Pluggedin App\n`;
-                            forceRefreshContent += `3. **pluggedin_send_notification** - Send custom notifications through the Plugged.in system with optional email delivery\n`;
+                            forceRefreshContent += `**Discovery (1):**\n`;
+                            forceRefreshContent += `1. **pluggedin_discover_tools** - Triggers discovery of tools for configured MCP servers\n`;
+                            forceRefreshContent += `\n**Knowledge Base (1):**\n`;
+                            forceRefreshContent += `2. **pluggedin_ask_knowledge_base** - Performs a RAG query against documents\n`;
+                            forceRefreshContent += `\n**Notifications (4):**\n`;
+                            forceRefreshContent += `3. **pluggedin_send_notification** - Send custom notifications with optional email\n`;
+                            forceRefreshContent += `4. **pluggedin_list_notifications** - List notifications with filters\n`;
+                            forceRefreshContent += `5. **pluggedin_mark_notification_done** - Mark a notification as done\n`;
+                            forceRefreshContent += `6. **pluggedin_delete_notification** - Delete a notification\n`;
+                            forceRefreshContent += `\n**Documents (5):**\n`;
+                            forceRefreshContent += `7. **pluggedin_create_document** - Create AI-generated documents\n`;
+                            forceRefreshContent += `8. **pluggedin_list_documents** - List documents with filtering\n`;
+                            forceRefreshContent += `9. **pluggedin_search_documents** - Search documents semantically\n`;
+                            forceRefreshContent += `10. **pluggedin_get_document** - Retrieve a specific document by ID\n`;
+                            forceRefreshContent += `11. **pluggedin_update_document** - Update or append to a document\n`;
+                            forceRefreshContent += `\n**Clipboard (7):**\n`;
+                            forceRefreshContent += `12. **pluggedin_clipboard_set** - Set a clipboard entry by name or index\n`;
+                            forceRefreshContent += `13. **pluggedin_clipboard_get** - Get clipboard entries with pagination\n`;
+                            forceRefreshContent += `14. **pluggedin_clipboard_delete** - Delete clipboard entries\n`;
+                            forceRefreshContent += `15. **pluggedin_clipboard_list** - List all clipboard entries (metadata only)\n`;
+                            forceRefreshContent += `16. **pluggedin_clipboard_push** - Push to indexed clipboard (auto-increment)\n`;
+                            forceRefreshContent += `17. **pluggedin_clipboard_pop** - Pop highest-indexed entry (LIFO)\n`;
                             forceRefreshContent += `\n`;
                             
                             // Add dynamic tools section (from MCP servers)
@@ -1338,17 +1397,25 @@ export const createServer = async () => {
             }
         }
 
-        // Handle document tools using StaticToolHandlers
+        // Handle static tools (documents and clipboard) using StaticToolHandlers
         const staticHandlers = new StaticToolHandlers(toolToServerMap, instructionToServerMap);
-        const documentTools = [
+        const staticTools = [
+            // Document tools
             createDocumentStaticTool.name,
             listDocumentsStaticTool.name,
             searchDocumentsStaticTool.name,
             getDocumentStaticTool.name,
-            updateDocumentStaticTool.name
+            updateDocumentStaticTool.name,
+            // Clipboard tools
+            clipboardSetStaticTool.name,
+            clipboardGetStaticTool.name,
+            clipboardDeleteStaticTool.name,
+            clipboardListStaticTool.name,
+            clipboardPushStaticTool.name,
+            clipboardPopStaticTool.name
         ];
-        
-        if (documentTools.includes(requestedToolName)) {
+
+        if (staticTools.includes(requestedToolName)) {
             const result = await staticHandlers.handleStaticTool(requestedToolName, args);
             if (result) {
                 return result;
@@ -1529,22 +1596,28 @@ export const createServer = async () => {
 
 The Plugged.in MCP Proxy is a powerful gateway that provides access to multiple MCP servers and built-in tools. Here's what you can do:
 
-## 🔧 Built-in Static Tools
+## 🔧 Built-in Static Tools (17 Total)
 
-### 1. **pluggedin_discover_tools**
+### Discovery (1 tool)
+
+#### 1. **pluggedin_discover_tools**
 - **Purpose**: Trigger discovery of tools and resources from configured MCP servers
-- **Parameters**: 
+- **Parameters**:
   - \`server_uuid\` (optional): Discover from specific server, or all servers if omitted
   - \`force_refresh\` (optional): Set to true to trigger background discovery and return immediately (defaults to false)
 - **Usage**: Returns cached data instantly if available. Use \`force_refresh=true\` to update data in background, then call again without force_refresh to see results.
 
-### 2. **pluggedin_ask_knowledge_base**
+### Knowledge Base (1 tool)
+
+#### 2. **pluggedin_ask_knowledge_base**
 - **Purpose**: Perform RAG (Retrieval-Augmented Generation) queries against your documents
 - **Parameters**:
   - \`query\` (required): The search query (1-1000 characters)
 - **Usage**: Search through uploaded documents and knowledge base
 
-### 3. **pluggedin_send_notification**
+### Notifications (4 tools)
+
+#### 3. **pluggedin_send_notification**
 - **Purpose**: Send custom notifications through the Plugged.in system
 - **Parameters**:
   - \`message\` (required): The notification message content
@@ -1553,24 +1626,126 @@ The Plugged.in MCP Proxy is a powerful gateway that provides access to multiple 
   - \`sendEmail\` (optional): Whether to also send via email (defaults to false)
 - **Usage**: Create custom notifications with optional email delivery
 
-### 4. **pluggedin_list_notifications**
+#### 4. **pluggedin_list_notifications**
 - **Purpose**: List notifications from the Plugged.in system
 - **Parameters**:
   - \`onlyUnread\` (optional): Filter to show only unread notifications (defaults to false)
   - \`limit\` (optional): Limit the number of notifications returned (1-100)
 - **Usage**: Retrieve and check your notifications with optional filters
 
-### 5. **pluggedin_mark_notification_done**
+#### 5. **pluggedin_mark_notification_done**
 - **Purpose**: Mark a notification as done
 - **Parameters**:
   - \`notificationId\` (required): The ID of the notification to mark as done
 - **Usage**: Update notification status to done
 
-### 6. **pluggedin_delete_notification**
+#### 6. **pluggedin_delete_notification**
 - **Purpose**: Delete a notification
 - **Parameters**:
   - \`notificationId\` (required): The ID of the notification to delete
 - **Usage**: Remove notifications from your list
+
+### Documents (5 tools)
+
+#### 7. **pluggedin_create_document**
+- **Purpose**: Create AI-generated documents in your library
+- **Parameters**:
+  - \`title\` (required): Document title (1-255 characters)
+  - \`content\` (required): Document content
+  - \`format\` (optional): md, txt, json, or html (defaults to md)
+  - \`tags\` (optional): Tags for categorization (max 20)
+  - \`category\` (optional): report, analysis, documentation, guide, research, code, or other
+  - \`metadata\` (required): AI model info, context, visibility, etc.
+- **Usage**: Save AI-generated content with full attribution and metadata
+
+#### 8. **pluggedin_list_documents**
+- **Purpose**: List documents with filtering and pagination
+- **Parameters**:
+  - \`filters\` (optional): Filter by source, model, dates, tags, category, search query
+  - \`sort\` (optional): date_desc, date_asc, title, or size (defaults to date_desc)
+  - \`limit\` (optional): Maximum documents to return (1-100, default 20)
+  - \`offset\` (optional): Pagination offset (default 0)
+- **Usage**: Browse and filter your document library
+
+#### 9. **pluggedin_search_documents**
+- **Purpose**: Search documents semantically
+- **Parameters**:
+  - \`query\` (required): Search query text (1-500 characters)
+  - \`filters\` (optional): Filter by model, dates, tags, source
+  - \`limit\` (optional): Maximum results (1-50, default 10)
+- **Usage**: Find documents using semantic search
+
+#### 10. **pluggedin_get_document**
+- **Purpose**: Retrieve a specific document by ID
+- **Parameters**:
+  - \`documentId\` (required): Document UUID
+  - \`includeContent\` (optional): Include full content (default false)
+  - \`includeVersions\` (optional): Include version history (default false)
+- **Usage**: Get detailed information about a specific document
+
+#### 11. **pluggedin_update_document**
+- **Purpose**: Update or append to an existing document
+- **Parameters**:
+  - \`documentId\` (required): Document UUID
+  - \`operation\` (required): replace, append, or prepend
+  - \`content\` (required): New content
+  - \`metadata\` (optional): Update metadata (tags, change summary, etc.)
+- **Usage**: Modify existing documents with version tracking
+
+### Clipboard (7 tools)
+
+#### 12. **pluggedin_clipboard_set**
+- **Purpose**: Set a clipboard entry by name or index
+- **Parameters**:
+  - \`name\` (optional): Named key for semantic access (e.g., 'customer_context')
+  - \`idx\` (optional): Numeric index for array-like access (e.g., 0, 1, 2)
+  - \`value\` (required): The content to store
+  - \`contentType\` (optional): MIME type (default 'text/plain')
+  - \`encoding\` (optional): utf-8, base64, or hex (default utf-8)
+  - \`visibility\` (optional): private, workspace, or public (default private)
+  - \`ttlSeconds\` (optional): Time-to-live in seconds (default 24 hours)
+- **Usage**: Store data by name or index. Named entries are upserted; indexed entries fail if index exists.
+
+#### 13. **pluggedin_clipboard_get**
+- **Purpose**: Get clipboard entries with pagination
+- **Parameters**:
+  - \`name\` (optional): Get entry by name
+  - \`idx\` (optional): Get entry by index
+  - \`contentType\` (optional): Filter by content type
+  - \`limit\` (optional): Maximum entries (1-100, default 50)
+  - \`offset\` (optional): Pagination offset (default 0)
+- **Usage**: Without name/idx, lists all entries with pagination
+
+#### 14. **pluggedin_clipboard_delete**
+- **Purpose**: Delete clipboard entries
+- **Parameters**:
+  - \`name\` (optional): Delete entry by name
+  - \`idx\` (optional): Delete entry by index
+  - \`clearAll\` (optional): Delete all entries (default false)
+- **Usage**: Remove entries by name, index, or clear all
+
+#### 15. **pluggedin_clipboard_list**
+- **Purpose**: List all clipboard entries (metadata only)
+- **Parameters**:
+  - \`contentType\` (optional): Filter by content type
+  - \`limit\` (optional): Maximum entries (1-100, default 50)
+  - \`offset\` (optional): Pagination offset (default 0)
+- **Usage**: Get overview of clipboard with truncated values
+
+#### 16. **pluggedin_clipboard_push**
+- **Purpose**: Push to indexed clipboard with auto-incrementing index
+- **Parameters**:
+  - \`value\` (required): The content to push
+  - \`contentType\` (optional): MIME type (default 'text/plain')
+  - \`encoding\` (optional): utf-8, base64, or hex (default utf-8)
+  - \`visibility\` (optional): private, workspace, or public (default private)
+  - \`ttlSeconds\` (optional): Time-to-live in seconds (default 24 hours)
+- **Usage**: Stack-like push operation with automatic indexing
+
+#### 17. **pluggedin_clipboard_pop**
+- **Purpose**: Pop the highest-indexed entry (LIFO behavior)
+- **Parameters**: None
+- **Usage**: Stack-like pop operation, removes and returns the last pushed entry
 
 ## 🔗 Proxy Features
 
@@ -1584,10 +1759,10 @@ The Plugged.in MCP Proxy is a powerful gateway that provides access to multiple 
 - **Profile-based Access**: All operations are scoped to your active profile
 - **Audit Logging**: All MCP activities are logged for monitoring and debugging
 
-### Notification System
-- **Activity Tracking**: Automatic logging of all MCP operations (tools, prompts, resources)
-- **Performance Metrics**: Execution timing for all operations
-- **Custom Notifications**: Send custom notifications with email delivery options
+### Data Management
+- **Document Library**: Full-featured document management with AI attribution and versioning
+- **Clipboard Storage**: Temporary storage for data sharing between tools and sessions
+- **Notification System**: Activity tracking and custom notifications with email delivery
 
 ## 🚀 Getting Started
 
@@ -1595,15 +1770,18 @@ The Plugged.in MCP Proxy is a powerful gateway that provides access to multiple 
 2. **Discover Tools**: Run \`pluggedin_discover_tools\` to see available tools from your servers
 3. **Use Tools**: Call any discovered tool through the proxy
 4. **Query Documents**: Use \`pluggedin_ask_knowledge_base\` to search your knowledge base
-5. **Manage Notifications**: Use notification tools to send, list, mark as read, and delete notifications
+5. **Manage Documents**: Use document tools to create, list, search, get, and update documents
+6. **Use Clipboard**: Store temporary data with clipboard tools for sharing between operations
+7. **Manage Notifications**: Send, list, mark as done, and delete notifications
 
 ## 📊 Monitoring
 
 - Check the Plugged.in app notifications to see MCP activity logs
 - Monitor execution times and success rates
 - View custom notifications in the notification center
+- Track document creation and clipboard usage
 
-The proxy acts as a unified gateway to all your MCP capabilities while providing enhanced features like RAG, notifications, and comprehensive logging.`
+The proxy acts as a unified gateway to all your MCP capabilities while providing enhanced features like RAG, document management, clipboard storage, notifications, and comprehensive logging.`
               }
             }
           ]
