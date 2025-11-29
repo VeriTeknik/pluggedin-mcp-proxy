@@ -1,6 +1,6 @@
 {
   "name": "@pluggedin/pluggedin-mcp-proxy",
-  "version": "1.12.0",
+  "version": "1.12.1",
   "description": "Unified MCP proxy that aggregates all your MCP servers (STDIO, SSE, Streamable HTTP) into one powerful interface. Access any tool through a single connection, search across unified documents with built-in RAG, and receive notifications from any model. Test your MCPs instantly in the playground with Claude, Gemini, OpenAI, and xAI. Perfect for Smithery deployment and all MCP clients. Features real-time activity logging, custom notifications with email delivery, and seamless profile-based workspace switching.",
   "scripts": {
     "build": "tsc && shx chmod +x dist/*.js",

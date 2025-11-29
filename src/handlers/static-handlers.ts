@@ -27,7 +27,8 @@ import {
   ClipboardListInputSchema,
   ClipboardPushInputSchema,
   ClipboardPopInputSchema,
-  ClipboardEntry
+  ClipboardEntry,
+  MCP_CLIPBOARD_SOURCE
 } from '../schemas/index.js';
 import { getMcpServers } from "../fetch-pluggedinmcp.js";
 import { 
@@ -1351,7 +1352,10 @@ Set environment variables in your terminal before launching the editor.
     try {
       const response = await axios.post(
         clipboardApiUrl,
-        validatedArgs,
+        {
+          ...validatedArgs,
+          source: MCP_CLIPBOARD_SOURCE,
+        },
         {
           headers: {
             'Authorization': `Bearer ${apiKey}`,
@@ -1725,7 +1729,10 @@ Set environment variables in your terminal before launching the editor.
     try {
       const response = await axios.post(
         clipboardApiUrl,
-        validatedArgs,
+        {
+          ...validatedArgs,
+          source: MCP_CLIPBOARD_SOURCE,
+        },
         {
           headers: {
             'Authorization': `Bearer ${apiKey}`,

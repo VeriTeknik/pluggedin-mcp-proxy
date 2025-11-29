@@ -219,6 +219,13 @@ export const UpdateDocumentInputSchema = z.object({
 // MIME type regex pattern for validation (prevents injection of special characters)
 const MIME_TYPE_REGEX = /^[\w.-]+\/[\w.+-]+$/;
 
+/** Clipboard source types */
+export const CLIPBOARD_SOURCES = ['ui', 'sdk', 'mcp'] as const;
+export type ClipboardSource = (typeof CLIPBOARD_SOURCES)[number];
+
+/** Source used by MCP proxy when writing clipboard entries */
+export const MCP_CLIPBOARD_SOURCE: ClipboardSource = 'mcp';
+
 /**
  * ClipboardEntry interface for type-safe response handling
  * Used to eliminate `any` types in response processing
@@ -234,6 +241,7 @@ export interface ClipboardEntry {
   visibility: string;
   createdByTool: string | null;
   createdByModel: string | null;
+  source: ClipboardSource;
   createdAt: string;
   updatedAt: string;
   expiresAt: string | null;
