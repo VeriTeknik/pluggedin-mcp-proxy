@@ -1351,7 +1351,10 @@ Set environment variables in your terminal before launching the editor.
     try {
       const response = await axios.post(
         clipboardApiUrl,
-        validatedArgs,
+        {
+          ...validatedArgs,
+          source: 'mcp', // Hardcoded: MCP proxy always uses 'mcp' source
+        },
         {
           headers: {
             'Authorization': `Bearer ${apiKey}`,
@@ -1725,7 +1728,10 @@ Set environment variables in your terminal before launching the editor.
     try {
       const response = await axios.post(
         clipboardApiUrl,
-        validatedArgs,
+        {
+          ...validatedArgs,
+          source: 'mcp', // Hardcoded: MCP proxy always uses 'mcp' source
+        },
         {
           headers: {
             'Authorization': `Bearer ${apiKey}`,

@@ -234,6 +234,7 @@ export interface ClipboardEntry {
   visibility: string;
   createdByTool: string | null;
   createdByModel: string | null;
+  source: 'ui' | 'sdk' | 'mcp';
   createdAt: string;
   updatedAt: string;
   expiresAt: string | null;
