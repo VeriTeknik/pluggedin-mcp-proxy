@@ -11,6 +11,7 @@
   [![License](https://img.shields.io/github/license/VeriTeknik/pluggedin-mcp?style=for-the-badge)](LICENSE)
   [![TypeScript](https://img.shields.io/badge/TypeScript-4.9+-blue?style=for-the-badge&logo=typescript)](https://www.typescriptlang.org/)
   [![MCP](https://img.shields.io/badge/MCP-Compatible-green?style=for-the-badge)](https://modelcontextprotocol.io/)
+  [![MCP Badge](https://lobehub.com/badge/mcp/veriteknik-pluggedin-mcp)](https://lobehub.com/mcp/veriteknik-pluggedin-mcp)
 </div>
 
 ## 📋 Overview
