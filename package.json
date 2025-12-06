@@ -31,7 +31,7 @@
   },
   "homepage": "https://github.com/VeriTeknik/pluggedin-mcp#readme",
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.21.1",
+    "@modelcontextprotocol/sdk": "^1.24.3",
     "axios": "^1.12.2",
     "commander": "^14.0.2",
     "express": "^5.1.0",
